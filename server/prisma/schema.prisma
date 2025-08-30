@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Game stats
+  totalScore    Int @default(0)
+  gamesPlayed   Int @default(0)
+  tournamentsWon Int @default(0)
+  
+  // Relations
+  participations TournamentParticipant[]
+  leaderboardEntries LeaderboardEntry[]
+  
+  @@map("users")
+}
+
+model Tournament {
+  id               String   @id @default(cuid())
+  name             String
+  prizePool        Float
+  maxParticipants  Int
+  startDate        DateTime
+  endDate          DateTime?
+  entryFee         Float
+  status           TournamentStatus @default(UPCOMING)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Relations
+  participants TournamentParticipant[]
+  
+  @@map("tournaments")
+}
+
+model TournamentParticipant {
+  id           String @id @default(cuid())
+  userId       String
+  tournamentId String
+  joinedAt     DateTime @default(now())
+  score        Int @default(0)
+  position     Int?
+  
+  // Relations
+  user       User       @relation(fields: [userId], references: [id])
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  
+  @@unique([userId, tournamentId])
+  @@map("tournament_participants")
+}
+
+model LeaderboardEntry {
+  id       String @id @default(cuid())
+  userId   String
+  rank     Int
+  score    Int
+  prize    Float?
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+  
+  @@unique([userId])
+  @@map("leaderboard_entries")
+}
+
+enum TournamentStatus {
+  UPCOMING
+  LIVE
+  ENDED
+}

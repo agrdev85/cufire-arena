@@ -1,69 +1,64 @@
 import TournamentCard from "./TournamentCard";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
-const mockTournaments = [
-  {
-    id: 1,
-    name: "Elite FPS Championship",
-    prizePool: 5000,
-    participants: 85,
-    maxParticipants: 100,
-    startDate: "15 Dic, 18:00",
-    entryFee: 10,
-    status: "active" as const,
-  },
-  {
-    id: 2,
-    name: "Cyber Arena Weekly",
-    prizePool: 2500,
-    participants: 67,
-    maxParticipants: 64,
-    startDate: "20 Dic, 20:00",
-    entryFee: 10,
-    status: "upcoming" as const,
-  },
-  {
-    id: 3,
-    name: "Neon Shootout",
-    prizePool: 1000,
-    participants: 32,
-    maxParticipants: 32,
-    startDate: "10 Dic, 16:00",
-    entryFee: 10,
-    status: "ended" as const,
-  },
-  {
-    id: 4,
-    name: "Quantum Masters",
-    prizePool: 7500,
-    participants: 45,
-    maxParticipants: 128,
-    startDate: "25 Dic, 14:00",
-    entryFee: 10,
-    status: "upcoming" as const,
-  },
-  {
-    id: 5,
-    name: "Plasma League",
-    prizePool: 3000,
-    participants: 78,
-    maxParticipants: 80,
-    startDate: "18 Dic, 19:00",
-    entryFee: 10,
-    status: "active" as const,
-  },
-  {
-    id: 6,
-    name: "Neural Network Cup",
-    prizePool: 4000,
-    participants: 23,
-    maxParticipants: 64,
-    startDate: "30 Dic, 15:00",
-    entryFee: 10,
-    status: "upcoming" as const,
-  },
-];
+interface Tournament {
+  id: string;
+  name: string;
+  prizePool: number;
+  participants: number;
+  maxParticipants: number;
+  startDate: string;
+  entryFee: number;
+  status: string;
+}
 
 const Tournaments = () => {
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTournaments = async () => {
+      try {
+        const response = await api.getTournaments();
+        // Format dates for display
+        const formattedTournaments = (response.tournaments || []).map((tournament: any) => ({
+          ...tournament,
+          startDate: new Date(tournament.startDate).toLocaleDateString('es-ES', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        }));
+        setTournaments(formattedTournaments);
+      } catch (error) {
+        console.error('Failed to fetch tournaments:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTournaments();
+  }, []);
+
+  if (loading) {
+    return (
+      <section id="tournaments" className="py-20 px-4">
+        <div className="container mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-orbitron font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">
+              TORNEOS ACTIVOS
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Cargando torneos disponibles...
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section id="tournaments" className="py-20 px-4">
       <div className="container mx-auto">
@@ -78,7 +73,7 @@ const Tournaments = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockTournaments.map((tournament) => (
+          {tournaments.map((tournament) => (
             <TournamentCard key={tournament.id} {...tournament} />
           ))}
         </div>

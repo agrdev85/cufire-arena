@@ -2,19 +2,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, DollarSign, Trophy } from "lucide-react";
+import { api, useAuth } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface TournamentCardProps {
-  id: number;
+  id: string;
   name: string;
   prizePool: number;
   participants: number;
   maxParticipants: number;
   startDate: string;
   entryFee: number;
-  status: "active" | "upcoming" | "ended";
+  status: string;
 }
 
 const TournamentCard = ({
+  id,
   name,
   prizePool,
   participants,
@@ -23,9 +27,41 @@ const TournamentCard = ({
   entryFee,
   status
 }: TournamentCardProps) => {
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
+  const [isJoining, setIsJoining] = useState(false);
+
+  const handleJoinTournament = async () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Inicia sesión",
+        description: "Debes iniciar sesión para unirte a un torneo",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsJoining(true);
+    try {
+      await api.joinTournament(id);
+      toast({
+        title: "¡Éxito!",
+        description: "Te has unido al torneo exitosamente",
+      });
+      window.location.reload();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "No se pudo unir al torneo",
+        variant: "destructive"
+      });
+    } finally {
+      setIsJoining(false);
+    }
+  };
   const getStatusColor = () => {
-    switch (status) {
-      case "active": return "bg-cyber-green";
+    switch (status.toLowerCase()) {
+      case "live": return "bg-cyber-green";
       case "upcoming": return "bg-neon-blue";
       case "ended": return "bg-muted";
       default: return "bg-neon-purple";
@@ -33,8 +69,8 @@ const TournamentCard = ({
   };
 
   const getStatusText = () => {
-    switch (status) {
-      case "active": return "EN VIVO";
+    switch (status.toLowerCase()) {
+      case "live": return "EN VIVO";
       case "upcoming": return "PRÓXIMO";
       case "ended": return "FINALIZADO";
       default: return "DESCONOCIDO";
@@ -89,12 +125,13 @@ const TournamentCard = ({
 
       <CardFooter>
         <Button 
-          variant={status === "active" ? "cyber" : "neon"} 
+          variant={status.toLowerCase() === "live" ? "cyber" : "neon"} 
           className="w-full"
-          disabled={status === "ended"}
+          disabled={status.toLowerCase() === "ended" || isJoining}
+          onClick={handleJoinTournament}
         >
           <Trophy className="h-4 w-4" />
-          {status === "ended" ? "Finalizado" : "Unirse al Torneo"}
+          {isJoining ? "Uniéndose..." : status.toLowerCase() === "ended" ? "Finalizado" : "Unirse al Torneo"}
         </Button>
       </CardFooter>
     </Card>

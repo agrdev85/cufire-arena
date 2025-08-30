@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Medal, Award } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
 interface LeaderboardEntry {
   rank: number;
@@ -23,6 +25,23 @@ const mockLeaderboard: LeaderboardEntry[] = [
 ];
 
 const Leaderboard = () => {
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      try {
+        const response = await api.getLeaderboard();
+        setLeaderboard(response.leaderboard || []);
+      } catch (error) {
+        console.error('Failed to fetch leaderboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLeaderboard();
+  }, []);
   const getRankIcon = (rank: number) => {
     switch (rank) {
       case 1:
@@ -66,7 +85,12 @@ const Leaderboard = () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="space-y-0">
-              {mockLeaderboard.map((entry, index) => (
+              {loading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Cargando leaderboard...
+                </div>
+              ) : leaderboard.length > 0 ? (
+                leaderboard.map((entry, index) => (
                 <div
                   key={entry.username}
                   className={`flex items-center justify-between p-4 border-b border-border/50 last:border-b-0 hover:bg-muted/20 transition-colors ${
@@ -98,7 +122,12 @@ const Leaderboard = () => {
                     )}
                   </div>
                 </div>
-              ))}
+              ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No hay datos en el leaderboard
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
