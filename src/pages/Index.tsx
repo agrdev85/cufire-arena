@@ -3,6 +3,7 @@ import Hero from "@/components/Hero";
 import Tournaments from "@/components/Tournaments";
 import Leaderboard from "@/components/Leaderboard";
 import Footer from "@/components/Footer";
+import Prizes from "@/components/Prizes";
 
 const Index = () => {
   return (
@@ -11,6 +12,7 @@ const Index = () => {
       <Hero />
       <Tournaments />
       <Leaderboard />
+      <Prizes />
       <Footer />
     </div>
   );

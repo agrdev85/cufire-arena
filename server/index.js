@@ -15,7 +15,26 @@ const PORT = process.env.PORT || 4000;
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: ['http://localhost:8080', 'http://localhost:3000'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    const allowed = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:8080'
+    ];
+    if (process.env.CORS_ORIGIN) {
+      allowed.push(...process.env.CORS_ORIGIN.split(','));
+    }
+    if (allowed.includes(origin)) {
+      return callback(null, true);
+    }
+    // In development, allow any origin
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 

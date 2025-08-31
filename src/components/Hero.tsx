@@ -42,9 +42,11 @@ const Hero = () => {
             <Play className="h-5 w-5" />
             Jugar Ahora
           </Button>
-          <Button variant="tournament" size="lg" className="text-lg px-8 py-6">
-            <Trophy className="h-5 w-5" />
-            Ver Torneos
+          <Button asChild variant="tournament" size="lg" className="text-lg px-8 py-6">
+            <a href="#tournaments" aria-label="Ver torneos disponibles">
+              <Trophy className="h-5 w-5" />
+              Ver Torneos
+            </a>
           </Button>
         </div>
 

@@ -44,7 +44,7 @@ const Tournaments = () => {
 
   if (loading) {
     return (
-      <section id="tournaments" className="py-20 px-4">
+      <section id="tournaments" className="py-20 px-4 scroll-mt-24">
         <div className="container mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-orbitron font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">
@@ -60,7 +60,7 @@ const Tournaments = () => {
   }
 
   return (
-    <section id="tournaments" className="py-20 px-4">
+    <section id="tournaments" className="py-20 px-4 scroll-mt-24">
       <div className="container mx-auto">
         <div className="text-center mb-12">
           <h2 className="text-4xl font-orbitron font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">

@@ -65,7 +65,7 @@ const Leaderboard = () => {
   };
 
   return (
-    <section id="leaderboard" className="py-20 px-4">
+    <section id="leaderboard" className="py-20 px-4 scroll-mt-24">
       <div className="container mx-auto max-w-4xl">
         <div className="text-center mb-12">
           <h2 className="text-4xl font-orbitron font-bold mb-4 bg-gradient-secondary bg-clip-text text-transparent">
