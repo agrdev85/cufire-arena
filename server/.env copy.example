@@ -1,0 +1,4 @@
+DATABASE_URL="postgresql://username:password@localhost:5432/cufire_arena"
+JWT_SECRET="your-super-secret-jwt-key-here"
+PORT=4000
+NODE_ENV=development
