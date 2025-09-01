@@ -41,11 +41,11 @@ class ApiClient {
     return response.json();
   }
 
-  // Auth methods
-  async register(email: string, username: string, password: string) {
+// Auth methods
+  async register(email: string, username: string, password: string, usdtWallet: string) {
     const data = await this.request('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, username, password })
+      body: JSON.stringify({ email, username, password, usdtWallet })
     });
 
     if (data.token && data.user) {
@@ -88,17 +88,35 @@ class ApiClient {
     return this.request(`/tournaments/${id}`);
   }
 
-  async joinTournament(id: string) {
+  async joinTournament(id: string, txHash: string) {
     return this.request(`/tournaments/${id}/join`, {
+      method: 'POST',
+      body: JSON.stringify({ txHash })
+    });
+  }
+
+  async verifyPayment(paymentId: string) {
+    return this.request(`/tournaments/payments/${paymentId}/verify`, {
+      method: 'PUT'
+    });
+  }
+
+  async distributePrizes(tournamentId: string) {
+    return this.request(`/tournaments/${tournamentId}/distribute`, {
       method: 'POST'
     });
   }
 
-  async updateTournamentScore(id: string, score: number) {
-    return this.request(`/tournaments/${id}/score`, {
+  // Score methods
+  async submitScore(value: number) {
+    return this.request('/scores/submit', {
       method: 'POST',
-      body: JSON.stringify({ score })
+      body: JSON.stringify({ value })
     });
+  }
+
+  async getGlobalLeaderboard() {
+    return this.request('/scores/global');
   }
 
   // Leaderboard methods
@@ -134,7 +152,8 @@ export const useAuth = () => {
     isAuthenticated,
     user,
     login: api.login.bind(api),
-    register: api.register.bind(api),
+    register: (email: string, username: string, password: string, usdtWallet: string) => 
+      api.register(email, username, password, usdtWallet),
     logout: api.logout.bind(api)
   };
 };

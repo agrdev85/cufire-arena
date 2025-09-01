@@ -10,64 +10,75 @@ const prisma = new PrismaClient();
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { email, username, password } = req.body;
+    const { username, email, password, usdtWallet } = req.body;
 
-    if (!email || !username || !password) {
-      return res.status(400).json({ error: 'All fields are required' });
+    // Validation
+    if (!username || !email || !password || !usdtWallet) {
+      return res.status(400).json({ error: 'Todos los campos son requeridos' });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
     }
 
-    // Check if user exists
+    // Check if user already exists
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
-          { email },
-          { username }
+          { email: email },
+          { username: username },
+          { usdtWallet: usdtWallet }
         ]
       }
     });
 
     if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
+      if (existingUser.email === email) {
+        return res.status(400).json({ error: 'El email ya está registrado' });
+      }
+      if (existingUser.username === username) {
+        return res.status(400).json({ error: 'El nombre de usuario ya está en uso' });
+      }
+      if (existingUser.usdtWallet === usdtWallet) {
+        return res.status(400).json({ error: 'Esta wallet USDT ya está registrada' });
+      }
     }
 
     // Hash password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create user
     const user = await prisma.user.create({
       data: {
-        email,
         username,
-        password: hashedPassword
+        email,
+        password: hashedPassword,
+        usdtWallet
       },
       select: {
         id: true,
-        email: true,
         username: true,
-        createdAt: true
+        email: true,
+        usdtWallet: true,
+        isAdmin: true
       }
     });
 
     // Generate JWT
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '24h' }
     );
 
     res.status(201).json({
-      message: 'User created successfully',
+      message: 'Usuario registrado exitosamente',
       token,
       user
     });
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({ error: 'Failed to create user' });
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
@@ -77,7 +88,7 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({ error: 'Email y contraseña son requeridos' });
     }
 
     // Find user
@@ -86,37 +97,38 @@ router.post('/login', async (req, res) => {
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
     // Check password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
     // Generate JWT
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '24h' }
     );
 
+    const userResponse = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      usdtWallet: user.usdtWallet,
+      isAdmin: user.isAdmin
+    };
+
     res.json({
-      message: 'Login successful',
+      message: 'Login exitoso',
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        totalScore: user.totalScore,
-        gamesPlayed: user.gamesPlayed,
-        tournamentsWon: user.tournamentsWon
-      }
+      user: userResponse
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Login failed' });
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
@@ -127,19 +139,21 @@ router.get('/me', authMiddleware, async (req, res) => {
       where: { id: req.user.id },
       select: {
         id: true,
-        email: true,
         username: true,
-        totalScore: true,
-        gamesPlayed: true,
-        tournamentsWon: true,
-        createdAt: true
+        email: true,
+        usdtWallet: true,
+        isAdmin: true
       }
     });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
 
     res.json({ user });
   } catch (error) {
     console.error('Get user error:', error);
-    res.status(500).json({ error: 'Failed to get user' });
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 

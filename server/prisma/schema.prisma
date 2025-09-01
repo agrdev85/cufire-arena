@@ -8,76 +8,87 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  username  String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Game stats
-  totalScore    Int @default(0)
-  gamesPlayed   Int @default(0)
-  tournamentsWon Int @default(0)
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  email        String   @unique
+  password     String
+  usdtWallet   String   @unique
+  isAdmin      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   
   // Relations
-  participations TournamentParticipant[]
-  leaderboardEntries LeaderboardEntry[]
+  scores       Score[]
+  payments     Payment[]
+  tournaments  TournamentRegistration[]
   
   @@map("users")
 }
 
 model Tournament {
-  id               String   @id @default(cuid())
-  name             String
-  prizePool        Float
-  maxParticipants  Int
-  startDate        DateTime
-  endDate          DateTime?
-  entryFee         Float
-  status           TournamentStatus @default(UPCOMING)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              Int       @id @default(autoincrement())
+  name            String
+  description     String?
+  maxPlayers      Int?
+  maxAmount       Float?
+  currentAmount   Float     @default(0)
+  registrationFee Float     @default(10)
+  startDate       DateTime?
+  endDate         DateTime?
+  duration        Int?      // minutos
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   
   // Relations
-  participants TournamentParticipant[]
+  registrations   TournamentRegistration[]
+  payments        Payment[]
+  scores          Score[]
   
   @@map("tournaments")
 }
 
-model TournamentParticipant {
-  id           String @id @default(cuid())
-  userId       String
-  tournamentId String
-  joinedAt     DateTime @default(now())
-  score        Int @default(0)
-  position     Int?
+model TournamentRegistration {
+  id            Int @id @default(autoincrement())
+  userId        Int
+  tournamentId  Int
+  registeredAt  DateTime @default(now())
   
   // Relations
-  user       User       @relation(fields: [userId], references: [id])
-  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  user          User       @relation(fields: [userId], references: [id])
+  tournament    Tournament @relation(fields: [tournamentId], references: [id])
   
   @@unique([userId, tournamentId])
-  @@map("tournament_participants")
+  @@map("tournament_registrations")
 }
 
-model LeaderboardEntry {
-  id       String @id @default(cuid())
-  userId   String
-  rank     Int
-  score    Int
-  prize    Float?
-  createdAt DateTime @default(now())
+model Payment {
+  id            Int @id @default(autoincrement())
+  userId        Int
+  tournamentId  Int
+  txHash        String
+  amount        Float
+  isActive      Boolean @default(false) // false=pending, true=verified
+  createdAt     DateTime @default(now())
   
   // Relations
-  user User @relation(fields: [userId], references: [id])
+  user          User       @relation(fields: [userId], references: [id])
+  tournament    Tournament @relation(fields: [tournamentId], references: [id])
   
-  @@unique([userId])
-  @@map("leaderboard_entries")
+  @@map("payments")
 }
 
-enum TournamentStatus {
-  UPCOMING
-  LIVE
-  ENDED
+model Score {
+  id            Int @id @default(autoincrement())
+  userId        Int
+  tournamentId  Int?
+  value         Int
+  mode          String
+  createdAt     DateTime @default(now())
+  
+  // Relations
+  user          User        @relation(fields: [userId], references: [id])
+  tournament    Tournament? @relation(fields: [tournamentId], references: [id])
+  
+  @@map("scores")
 }

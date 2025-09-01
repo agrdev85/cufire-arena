@@ -52,8 +52,12 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/scores', require('./routes/scores'));
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/users', userRoutes);
+
+// Unity Routes (texto plano)
+app.use('/unity', require('./routes/unity'));
 
 // Health check
 app.get('/api/health', (req, res) => {

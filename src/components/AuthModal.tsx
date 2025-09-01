@@ -15,7 +15,12 @@ interface AuthModalProps {
 
 export const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
   const [loginData, setLoginData] = useState({ email: "", password: "" });
-  const [registerData, setRegisterData] = useState({ email: "", username: "", password: "" });
+  const [registerData, setRegisterData] = useState({ 
+    email: "", 
+    username: "", 
+    password: "", 
+    usdtWallet: "" 
+  });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -47,7 +52,7 @@ export const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
     setLoading(true);
 
     try {
-      await api.register(registerData.email, registerData.username, registerData.password);
+      await api.register(registerData.email, registerData.username, registerData.password, registerData.usdtWallet);
       toast({
         title: "¡Cuenta creada!",
         description: "Te has registrado exitosamente",
@@ -143,6 +148,17 @@ export const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
                   onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
                   required
                   minLength={6}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="register-wallet">Wallet USDT (TRC20)</Label>
+                <Input
+                  id="register-wallet"
+                  type="text"
+                  placeholder="TU_WALLET_USDT_AQUI"
+                  value={registerData.usdtWallet}
+                  onChange={(e) => setRegisterData({ ...registerData, usdtWallet: e.target.value })}
+                  required
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
