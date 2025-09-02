@@ -52,8 +52,12 @@ const Admin = () => {
 
   const fetchData = async () => {
     try {
-      // In a real implementation, you would have endpoints for admin data
-      // For now, we'll simulate the data structure
+      const [paymentsRes, tournamentsRes] = await Promise.all([
+        (api as any).getPendingPayments(),
+        api.getTournaments(),
+      ]);
+      setPendingPayments(paymentsRes.payments || []);
+      setTournaments(tournamentsRes.tournaments || []);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching admin data:', error);

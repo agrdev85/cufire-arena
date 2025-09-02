@@ -121,7 +121,7 @@ class ApiClient {
 
   // Leaderboard methods
   async getLeaderboard() {
-    return this.request('/leaderboard');
+    return this.request('/scores/global');
   }
 
   async getTournamentLeaderboard(id: string) {
@@ -154,6 +154,17 @@ export const useAuth = () => {
     login: api.login.bind(api),
     register: (email: string, username: string, password: string, usdtWallet: string) => 
       api.register(email, username, password, usdtWallet),
-    logout: api.logout.bind(api)
+    logout: api.logout.bind(api),
   };
+};
+
+// Additional API helpers
+// Check if current user has an active registration in any tournament
+(ApiClient.prototype as any).hasActiveRegistration = function() {
+  return this.request('/tournaments/active-registration');
+};
+
+// Admin: get pending payments
+(ApiClient.prototype as any).getPendingPayments = function() {
+  return this.request('/tournaments/payments/pending');
 };

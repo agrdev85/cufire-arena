@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Calendar, Users, DollarSign, Trophy, Wallet } from "lucide-react";
 import { api, useAuth } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface TournamentCardProps {
   id: number;
@@ -39,6 +39,20 @@ const TournamentCard = ({
   const [isJoining, setIsJoining] = useState(false);
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const [txHash, setTxHash] = useState("");
+  const [hasActiveRegistration, setHasActiveRegistration] = useState(false);
+
+  useEffect(() => {
+    const checkActive = async () => {
+      if (!isAuthenticated) return;
+      try {
+        const res = await (api as any).hasActiveRegistration();
+        setHasActiveRegistration(!!res.hasActiveRegistration);
+      } catch (e) {
+        // silent
+      }
+    };
+    checkActive();
+  }, [isAuthenticated]);
 
   const handleJoinTournament = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,6 +106,7 @@ const TournamentCard = ({
     if (isJoining) return "Procesando...";
     if (frontendState === "Finalizado") return "Finalizado";
     if (frontendState === "En curso") return "En Curso";
+    if (hasActiveRegistration) return "Ya estás en un torneo";
     return "Unirse al Torneo";
   };
 
@@ -174,7 +189,7 @@ const TournamentCard = ({
               <Button 
                 variant="neon" 
                 className="w-full"
-                disabled={!isAuthenticated}
+                disabled={!isAuthenticated || hasActiveRegistration}
                 onClick={() => {
                   if (!isAuthenticated) {
                     toast({
@@ -182,11 +197,17 @@ const TournamentCard = ({
                       description: "Debes iniciar sesión para unirte a un torneo",
                       variant: "destructive"
                     });
+                  } else if (hasActiveRegistration) {
+                    toast({
+                      title: "No disponible",
+                      description: "Ya estás inscrito en un torneo activo",
+                      variant: "destructive"
+                    });
                   }
                 }}
               >
                 <Trophy className="h-4 w-4" />
-                {!isAuthenticated ? "Inicia Sesión" : "Unirse al Torneo"}
+                {!isAuthenticated ? "Inicia Sesión" : getJoinButtonText()}
               </Button>
             </DialogTrigger>
             

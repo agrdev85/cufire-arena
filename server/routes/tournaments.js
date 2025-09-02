@@ -350,4 +350,42 @@ router.post('/:id/distribute', authMiddleware, async (req, res) => {
   }
 });
 
+// Check if user has active tournament registration
+router.get('/active-registration', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const reg = await prisma.tournamentRegistration.findFirst({
+      where: { userId, tournament: { isActive: true } },
+      select: { tournamentId: true }
+    });
+    res.json({ hasActiveRegistration: !!reg, tournamentId: reg?.tournamentId || null });
+  } catch (error) {
+    console.error('Active registration check error:', error);
+    res.status(500).json({ error: 'Error al verificar registro activo' });
+  }
+});
+
+// Admin: list pending payments
+router.get('/payments/pending', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
+    }
+
+    const payments = await prisma.payment.findMany({
+      where: { isActive: false },
+      include: {
+        user: { select: { username: true, email: true, usdtWallet: true } },
+        tournament: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ payments });
+  } catch (error) {
+    console.error('List pending payments error:', error);
+    res.status(500).json({ error: 'Error al listar pagos pendientes' });
+  }
+});
+
 module.exports = router;

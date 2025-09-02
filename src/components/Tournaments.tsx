@@ -2,36 +2,40 @@ import TournamentCard from "./TournamentCard";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
-interface Tournament {
-  id: string;
+interface TournamentDTO {
+  id: number;
   name: string;
-  prizePool: number;
-  participants: number;
-  maxParticipants: number;
-  startDate: string;
-  entryFee: number;
-  status: string;
+  maxAmount?: number;
+  currentAmount: number;
+  registrationFee: number;
+  participantCount: number;
+  maxPlayers?: number;
+  startDate?: string | null;
+  frontendState: "Open" | "En curso" | "Finalizado";
+  countdownRemaining?: number | null;
 }
 
 const Tournaments = () => {
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [tournaments, setTournaments] = useState<TournamentDTO[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
         const response = await api.getTournaments();
-        // Format dates for display
-        const formattedTournaments = (response.tournaments || []).map((tournament: any) => ({
-          ...tournament,
-          startDate: new Date(tournament.startDate).toLocaleDateString('es-ES', {
-            day: 'numeric',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
+        const list: TournamentDTO[] = (response.tournaments || []).map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          maxAmount: t.maxAmount ?? undefined,
+          currentAmount: t.currentAmount || 0,
+          registrationFee: t.registrationFee,
+          participantCount: t.participantCount || 0,
+          maxPlayers: t.maxPlayers ?? undefined,
+          startDate: t.startDate ? String(t.startDate) : null,
+          frontendState: t.frontendState,
+          countdownRemaining: t.countdownRemaining ?? null,
         }));
-        setTournaments(formattedTournaments);
+        setTournaments(list);
       } catch (error) {
         console.error('Failed to fetch tournaments:', error);
       } finally {
@@ -73,8 +77,20 @@ const Tournaments = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tournaments.map((tournament) => (
-            <TournamentCard key={tournament.id} {...tournament} />
+          {tournaments.map((t) => (
+            <TournamentCard
+              key={t.id}
+              id={t.id}
+              name={t.name}
+              maxAmount={t.maxAmount}
+              currentAmount={t.currentAmount}
+              registrationFee={t.registrationFee}
+              participantCount={t.participantCount}
+              maxPlayers={t.maxPlayers}
+              startDate={t.startDate || undefined}
+              frontendState={t.frontendState}
+              countdownRemaining={t.countdownRemaining || undefined}
+            />
           ))}
         </div>
 

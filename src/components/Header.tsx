@@ -42,6 +42,11 @@ const Header = () => {
           <a href="#prizes" className="text-foreground hover:text-neon-pink transition-colors">
             Premios
           </a>
+          {isAuthenticated && user?.isAdmin && (
+            <a href="/admin" className="text-foreground hover:text-cyber-green transition-colors">
+              Admin
+            </a>
+          )}
         </nav>
 
         <div className="flex items-center space-x-3">
