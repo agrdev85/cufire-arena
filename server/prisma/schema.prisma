@@ -35,6 +35,7 @@ model Tournament {
   maxAmount       Float?
   currentAmount   Float     @default(0)
   registrationFee Float     @default(10)
+  prizePercentage Float     @default(70)  // Percentage of maxAmount to distribute
   startDate       DateTime?
   endDate         DateTime?
   duration        Int?      // minutos

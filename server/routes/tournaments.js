@@ -20,7 +20,7 @@ function getFrontendState(tournament, now = new Date()) {
   return "Open";
 }
 
-// Get all tournaments
+// Get all tournaments with calculated state and current amount
 router.get('/', async (req, res) => {
   try {
     const tournaments = await prisma.tournament.findMany({
@@ -34,31 +34,38 @@ router.get('/', async (req, res) => {
         },
         _count: {
           select: { registrations: true }
+        },
+        payments: {
+          where: { isActive: true }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
 
     const now = new Date();
-    const formattedTournaments = tournaments.map(tournament => ({
-      id: tournament.id,
-      name: tournament.name,
-      description: tournament.description,
-      maxPlayers: tournament.maxPlayers,
-      maxAmount: tournament.maxAmount,
-      currentAmount: tournament.currentAmount,
-      registrationFee: tournament.registrationFee,
-      startDate: tournament.startDate,
-      endDate: tournament.endDate,
-      duration: tournament.duration,
-      isActive: tournament.isActive,
-      frontendState: getFrontendState(tournament, now),
-      participantCount: tournament._count.registrations,
-      participants: tournament.registrations.map(reg => reg.user.username),
-      countdownRemaining: tournament.startDate && tournament.duration && getFrontendState(tournament, now) === "En curso" 
-        ? Math.max(0, Math.floor((new Date(tournament.startDate.getTime() + tournament.duration * 60000) - now) / 1000))
-        : null
-    }));
+    const formattedTournaments = tournaments.map(tournament => {
+      const currentAmount = tournament.payments.reduce((sum, payment) => sum + payment.amount, 0);
+      return {
+        id: tournament.id,
+        name: tournament.name,
+        description: tournament.description,
+        maxPlayers: tournament.maxPlayers,
+        maxAmount: tournament.maxAmount,
+        currentAmount,
+        registrationFee: tournament.registrationFee,
+        prizePercentage: tournament.prizePercentage || 70,
+        startDate: tournament.startDate,
+        endDate: tournament.endDate,
+        duration: tournament.duration,
+        isActive: tournament.isActive,
+        frontendState: getFrontendState({ ...tournament, currentAmount }, now),
+        participantCount: tournament._count.registrations,
+        participants: tournament.registrations.map(reg => reg.user.username),
+        countdownRemaining: tournament.startDate && tournament.duration && getFrontendState({ ...tournament, currentAmount }, now) === "En curso" 
+          ? Math.max(0, Math.floor((new Date(tournament.startDate.getTime() + tournament.duration * 60000) - now) / 1000))
+          : null
+      };
+    });
 
     res.json({ tournaments: formattedTournaments });
   } catch (error) {
@@ -286,6 +293,207 @@ router.put('/payments/:paymentId/verify', authMiddleware, async (req, res) => {
   }
 });
 
+// Prize calculation function
+function getPrizeForRank(rank, maxAmount, prizePercentage = 70) {
+  const PRIZE_MAP = [0.30, 0.18, 0.13, 0.09, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05];
+  
+  if (rank < 1 || rank > 10) return 0;
+  const prizeBase = maxAmount * (prizePercentage / 100);
+  return Math.floor(prizeBase * PRIZE_MAP[rank - 1] * 100) / 100;
+}
+
+// Create tournament (admin only)
+router.post('/', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
+    }
+
+    const { name, description, maxPlayers, maxAmount, registrationFee, duration, prizePercentage } = req.body;
+
+    const tournament = await prisma.tournament.create({
+      data: {
+        name,
+        description,
+        maxPlayers,
+        maxAmount, 
+        registrationFee: registrationFee || 10,
+        duration,
+        prizePercentage: prizePercentage || 70
+      }
+    });
+
+    res.json({ tournament });
+  } catch (error) {
+    console.error('Create tournament error:', error);
+    res.status(500).json({ error: 'Error al crear torneo' });
+  }
+});
+
+// Update tournament (admin only)
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
+    }
+
+    const tournament = await prisma.tournament.update({
+      where: { id: parseInt(req.params.id) },
+      data: req.body
+    });
+
+    res.json({ tournament });
+  } catch (error) {
+    console.error('Update tournament error:', error);
+    res.status(500).json({ error: 'Error al actualizar torneo' });
+  }
+});
+
+// Delete tournament (admin only)
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
+    }
+
+    await prisma.tournament.delete({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    res.json({ message: 'Torneo eliminado' });
+  } catch (error) {
+    console.error('Delete tournament error:', error);
+    res.status(500).json({ error: 'Error al eliminar torneo' });
+  }
+});
+
+// Get all payments for admin with search and filtering
+router.get('/payments', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
+    }
+
+    const { search, status } = req.query;
+    
+    const where = {};
+    if (status === 'pending') where.isActive = false;
+    if (status === 'verified') where.isActive = true;
+    
+    if (search) {
+      where.OR = [
+        { user: { username: { contains: search, mode: 'insensitive' } } },
+        { user: { email: { contains: search, mode: 'insensitive' } } },
+        { tournament: { name: { contains: search, mode: 'insensitive' } } }
+      ];
+    }
+
+    const payments = await prisma.payment.findMany({
+      where,
+      include: {
+        user: {
+          select: { username: true, email: true, usdtWallet: true }
+        },
+        tournament: {
+          select: { name: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ payments });
+  } catch (error) {
+    console.error('Get payments error:', error);
+    res.status(500).json({ error: 'Error al obtener pagos' });
+  }
+});
+
+// Get all users for admin with search
+router.get('/users', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
+    }
+
+    const { search } = req.query;
+    
+    const where = {};
+    if (search) {
+      where.OR = [
+        { username: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { usdtWallet: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        usdtWallet: true,
+        isAdmin: true,
+        gamesPlayed: true,
+        gamesWon: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ users });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ error: 'Error al obtener usuarios' });
+  }
+});
+
+// Update user (admin only)
+router.put('/users/:id', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: parseInt(req.params.id) },
+      data: req.body,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        usdtWallet: true,
+        isAdmin: true,
+        gamesPlayed: true,
+        gamesWon: true
+      }
+    });
+
+    res.json({ user });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ error: 'Error al actualizar usuario' });
+  }
+});
+
+// Delete user (admin only)
+router.delete('/users/:id', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
+    }
+
+    await prisma.user.delete({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    res.json({ message: 'Usuario eliminado' });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Error al eliminar usuario' });
+  }
+});
+
 // Distribute prizes
 router.post('/:id/distribute', authMiddleware, async (req, res) => {
   try {
@@ -306,23 +514,25 @@ router.post('/:id/distribute', authMiddleware, async (req, res) => {
           },
           orderBy: { value: 'desc' },
           take: 10
+        },
+        payments: {
+          where: { isActive: true }
         }
       }
     });
 
     if (!tournament) return res.status(404).json({ error: 'Torneo no encontrado' });
 
-    const frontendState = getFrontendState(tournament);
+    const currentAmount = tournament.payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const frontendState = getFrontendState({ ...tournament, currentAmount });
+    
     if (frontendState !== "Finalizado") {
       return res.status(400).json({ error: 'El torneo debe estar finalizado para distribuir premios' });
     }
-
-    const PRIZE_MAP = [0.30, 0.18, 0.13, 0.09, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05];
     
     const prizes = tournament.scores.map((score, index) => {
       const rank = index + 1;
-      const prizePercentage = PRIZE_MAP[rank - 1] || 0;
-      const prizeUSDT = Math.floor((tournament.maxAmount || 0) * prizePercentage * 100) / 100;
+      const prizeUSDT = getPrizeForRank(rank, tournament.maxAmount || 0, tournament.prizePercentage || 70);
       
       return {
         rank,
