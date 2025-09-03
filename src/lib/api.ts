@@ -1,19 +1,20 @@
-const API_BASE_URL = 'http://localhost:4000/api';
+const API_BASE_URL = 'http://localhost:3001/api';
 
-// Auth storage
-export const AuthStorage = {
-  getToken: () => localStorage.getItem('cufire_token'),
-  setToken: (token: string) => localStorage.setItem('cufire_token', token),
-  removeToken: () => localStorage.removeItem('cufire_token'),
-  getUser: () => {
-    const user = localStorage.getItem('cufire_user');
-    return user ? JSON.parse(user) : null;
-  },
-  setUser: (user: any) => localStorage.setItem('cufire_user', JSON.stringify(user)),
-  removeUser: () => localStorage.removeItem('cufire_user')
-};
+interface AuthResponse {
+  token: string;
+  user: {
+    id: number;
+    username: string;
+    email: string;
+    usdtWallet: string;
+    isAdmin: boolean;
+  };
+}
 
-// API client with auth
+interface ApiError {
+  error: string;
+}
+
 class ApiClient {
   private getHeaders() {
     const token = AuthStorage.getToken();
@@ -59,24 +60,20 @@ class ApiClient {
   async login(email: string, password: string) {
     const data = await this.request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify(credentials),
     });
-
-    if (data.token && data.user) {
-      AuthStorage.setToken(data.token);
-      AuthStorage.setUser(data.user);
+    
+    if (response.token) {
+      this.token = response.token;
+      localStorage.setItem('token', response.token);
     }
-
-    return data;
+    
+    return response;
   }
 
-  async getCurrentUser() {
-    return this.request('/auth/me');
-  }
-
-  async logout() {
-    AuthStorage.removeToken();
-    AuthStorage.removeUser();
+  logout() {
+    this.token = null;
+    localStorage.removeItem('token');
   }
 
   // Tournament methods
