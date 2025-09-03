@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 13% 9%;
+    --foreground: 220 9% 95%;
+    --card: 220 13% 11%;
+    --card-foreground: 220 9% 95%;
+    --popover: 220 13% 11%;
+    --popover-foreground: 220 9% 95%;
+    --primary: 142 86% 50%;
+    --primary-foreground: 220 13% 9%;
+    --secondary: 220 9% 20%;
+    --secondary-foreground: 220 9% 95%;
+    --muted: 220 9% 20%;
+    --muted-foreground: 220 9% 60%;
+    --accent: 142 86% 50%;
+    --accent-foreground: 220 13% 9%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 220 9% 95%;
+    --border: 220 9% 20%;
+    --input: 220 9% 20%;
+    --ring: 142 86% 50%;
+    --radius: 0.5rem;
+    
+    /* Custom cyber colors */
+    --cyber-gold: 45 100% 70%;
+    --cyber-blue: 200 100% 70%;
+    --cyber-purple: 280 100% 70%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--cyber-blue)));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--cyber-gold)), hsl(var(--cyber-purple)));
+    --gradient-cyber: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--cyber-gold)));
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .cyber-border {
+    @apply border border-primary/30 shadow-lg shadow-primary/10;
+  }
+  
+  .cyber-glow {
+    @apply shadow-lg shadow-primary/20;
+  }
+  
+  .bg-gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .bg-gradient-accent {
+    background: var(--gradient-accent);
+  }
+  
+  .bg-gradient-cyber {
+    background: var(--gradient-cyber);
+  }
+  
+  .text-cyber-gold {
+    color: hsl(var(--cyber-gold));
+  }
+  
+  .text-cyber-blue {
+    color: hsl(var(--cyber-blue));
+  }
+  
+  .text-cyber-purple {
+    color: hsl(var(--cyber-purple));
+  }
+  
+  .border-cyber-gold {
+    border-color: hsl(var(--cyber-gold));
+  }
+}

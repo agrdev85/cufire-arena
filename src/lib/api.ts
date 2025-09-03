@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'http://localhost:4000/api';
 
 interface AuthResponse {
   token: string;
@@ -70,6 +70,7 @@ class ApiClient {
     if (response.token) {
       this.token = response.token;
       localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
     }
     
     return response;
@@ -78,6 +79,7 @@ class ApiClient {
   logout() {
     this.token = null;
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
   }
 
   // Tournaments
