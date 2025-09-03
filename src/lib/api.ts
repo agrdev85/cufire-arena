@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:3001/api';
+import { AuthStorage } from './auth-storage';
+
+const API_BASE_URL = 'http://localhost:4000/api';
 
 interface AuthResponse {
   token: string;
@@ -42,7 +44,7 @@ class ApiClient {
     return response.json();
   }
 
-// Auth methods
+  // Auth methods
   async register(email: string, username: string, password: string, usdtWallet: string) {
     const data = await this.request('/auth/register', {
       method: 'POST',
@@ -60,20 +62,19 @@ class ApiClient {
   async login(email: string, password: string) {
     const data = await this.request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify(credentials),
+      body: JSON.stringify({ email, password })
     });
-    
-    if (response.token) {
-      this.token = response.token;
-      localStorage.setItem('token', response.token);
+
+    if (data.token && data.user) {
+      AuthStorage.setToken(data.token);
+      AuthStorage.setUser(data.user);
     }
-    
-    return response;
+
+    return data;
   }
 
   logout() {
-    this.token = null;
-    localStorage.removeItem('token');
+    AuthStorage.clear();
   }
 
   // Tournament methods
@@ -136,6 +137,59 @@ class ApiClient {
       body: JSON.stringify({ username })
     });
   }
+
+  // Additional methods
+  async hasActiveRegistration() {
+    return this.request('/tournaments/active-registration');
+  }
+
+  async getPendingPayments() {
+    return this.request('/tournaments/payments/pending');
+  }
+
+  async createTournament(tournament: any) {
+    return this.request('/tournaments', {
+      method: 'POST',
+      body: JSON.stringify(tournament)
+    });
+  }
+
+  async updateTournament(id: string, tournament: any) {
+    return this.request(`/tournaments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(tournament)
+    });
+  }
+
+  async deleteTournament(id: string) {
+    return this.request(`/tournaments/${id}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async getUsers() {
+    return this.request('/users');
+  }
+
+  async createUser(user: any) {
+    return this.request('/users', {
+      method: 'POST',
+      body: JSON.stringify(user)
+    });
+  }
+
+  async updateUser(id: string, user: any) {
+    return this.request(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(user)
+    });
+  }
+
+  async deleteUser(id: string) {
+    return this.request(`/users/${id}`, {
+      method: 'DELETE'
+    });
+  }
 }
 
 export const api = new ApiClient();
@@ -153,15 +207,4 @@ export const useAuth = () => {
       api.register(email, username, password, usdtWallet),
     logout: api.logout.bind(api),
   };
-};
-
-// Additional API helpers
-// Check if current user has an active registration in any tournament
-(ApiClient.prototype as any).hasActiveRegistration = function() {
-  return this.request('/tournaments/active-registration');
-};
-
-// Admin: get pending payments
-(ApiClient.prototype as any).getPendingPayments = function() {
-  return this.request('/tournaments/payments/pending');
 };

@@ -86,7 +86,7 @@ const Admin = () => {
   const fetchData = async () => {
     try {
       const [paymentsRes, tournamentsRes, usersRes] = await Promise.all([
-        api.getPayments(),
+        api.getPendingPayments(),
         api.getTournaments(),
         api.getUsers(),
       ]);
