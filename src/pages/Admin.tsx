@@ -74,21 +74,25 @@ const Admin = () => {
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
-  useEffect(() => {
+useEffect(() => {
     if (!isAuthenticated || !user?.isAdmin) {
       window.location.href = '/';
       return;
     }
 
     fetchData();
-  }, [isAuthenticated, user]);
+    const interval = setInterval(() => {
+      fetchData();
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, user, paymentStatus, paymentSearch, userSearch]);
 
   const fetchData = async () => {
     try {
       const [paymentsRes, tournamentsRes, usersRes] = await Promise.all([
-        api.getPendingPayments(),
+        api.getPayments({ status: paymentStatus as any, search: paymentSearch }),
         api.getTournaments(),
-        api.getUsers(),
+        api.getUsers(userSearch),
       ]);
       setPayments(paymentsRes.payments || []);
       setTournaments(tournamentsRes.tournaments || []);

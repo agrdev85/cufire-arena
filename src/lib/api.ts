@@ -143,8 +143,17 @@ class ApiClient {
     return this.request('/tournaments/active-registration');
   }
 
+  async getPayments(params?: { status?: 'pending' | 'verified' | 'all'; search?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.status && params.status !== 'all') qs.set('status', params.status);
+    if (params?.search && params.search.trim()) qs.set('search', params.search.trim());
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request(`/tournaments/payments${suffix}`);
+  }
+
+  // Backwards-compatible helper
   async getPendingPayments() {
-    return this.request('/tournaments/payments/pending');
+    return this.getPayments({ status: 'pending' });
   }
 
   async createTournament(tournament: any) {
@@ -167,8 +176,9 @@ class ApiClient {
     });
   }
 
-  async getUsers() {
-    return this.request('/users');
+  async getUsers(search?: string) {
+    const qs = search && search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+    return this.request(`/tournaments/users${qs}`);
   }
 
   async createUser(user: any) {
@@ -179,14 +189,14 @@ class ApiClient {
   }
 
   async updateUser(id: string, user: any) {
-    return this.request(`/users/${id}`, {
+    return this.request(`/tournaments/users/${id}`, {
       method: 'PUT',
       body: JSON.stringify(user)
     });
   }
 
   async deleteUser(id: string) {
-    return this.request(`/users/${id}`, {
+    return this.request(`/tournaments/users/${id}`, {
       method: 'DELETE'
     });
   }

@@ -560,15 +560,19 @@ router.post('/:id/distribute', authMiddleware, async (req, res) => {
   }
 });
 
-// Check if user has active tournament registration
+// Check if user has active verified payment in an active tournament
 router.get('/active-registration', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const reg = await prisma.tournamentRegistration.findFirst({
-      where: { userId, tournament: { isActive: true } },
+    const payment = await prisma.payment.findFirst({
+      where: {
+        userId,
+        isActive: true,
+        tournament: { isActive: true }
+      },
       select: { tournamentId: true }
     });
-    res.json({ hasActiveRegistration: !!reg, tournamentId: reg?.tournamentId || null });
+    res.json({ hasActiveRegistration: !!payment, tournamentId: payment?.tournamentId || null });
   } catch (error) {
     console.error('Active registration check error:', error);
     res.status(500).json({ error: 'Error al verificar registro activo' });
