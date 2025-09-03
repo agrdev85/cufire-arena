@@ -1,207 +1,170 @@
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'http://localhost:4000/api';
 
-interface AuthResponse {
-  token: string;
-  user: {
-    id: number;
-    username: string;
-    email: string;
-    usdtWallet: string;
-    isAdmin: boolean;
-  };
-}
+// Auth storage
+export const AuthStorage = {
+  getToken: () => localStorage.getItem('cufire_token'),
+  setToken: (token: string) => localStorage.setItem('cufire_token', token),
+  removeToken: () => localStorage.removeItem('cufire_token'),
+  getUser: () => {
+    const user = localStorage.getItem('cufire_user');
+    return user ? JSON.parse(user) : null;
+  },
+  setUser: (user: any) => localStorage.setItem('cufire_user', JSON.stringify(user)),
+  removeUser: () => localStorage.removeItem('cufire_user')
+};
 
-interface ApiError {
-  error: string;
-}
-
+// API client with auth
 class ApiClient {
-  private token: string | null = null;
-
-  constructor() {
-    this.token = localStorage.getItem('token');
-  }
-
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const headers: HeadersInit = {
+  private getHeaders() {
+    const token = AuthStorage.getToken();
+    return {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(token && { Authorization: `Bearer ${token}` })
     };
+  }
 
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
-    }
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}`);
+  async request(endpoint: string, options: RequestInit = {}) {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...this.getHeaders(),
+        ...options.headers
       }
-
-      return data;
-    } catch (error) {
-      console.error('API request failed:', error);
-      throw error;
-    }
-  }
-
-  // Auth
-  async register(userData: { username: string; email: string; password: string; usdtWallet: string }) {
-    const response = await this.makeRequest('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(userData),
     });
-    return response;
-  }
 
-  async login(credentials: { email: string; password: string }): Promise<AuthResponse> {
-    const response = await this.makeRequest('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(credentials),
-    });
-    
-    if (response.token) {
-      this.token = response.token;
-      localStorage.setItem('token', response.token);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Network error' }));
+      throw new Error(error.error || `HTTP ${response.status}`);
     }
-    
-    return response;
+
+    return response.json();
   }
 
-  logout() {
-    this.token = null;
-    localStorage.removeItem('token');
+// Auth methods
+  async register(email: string, username: string, password: string, usdtWallet: string) {
+    const data = await this.request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, username, password, usdtWallet })
+    });
+
+    if (data.token && data.user) {
+      AuthStorage.setToken(data.token);
+      AuthStorage.setUser(data.user);
+    }
+
+    return data;
   }
 
-  // Tournaments
+  async login(email: string, password: string) {
+    const data = await this.request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+
+    if (data.token && data.user) {
+      AuthStorage.setToken(data.token);
+      AuthStorage.setUser(data.user);
+    }
+
+    return data;
+  }
+
+  async getCurrentUser() {
+    return this.request('/auth/me');
+  }
+
+  async logout() {
+    AuthStorage.removeToken();
+    AuthStorage.removeUser();
+  }
+
+  // Tournament methods
   async getTournaments() {
-    const response = await this.makeRequest('/tournaments');
-    return response;
+    return this.request('/tournaments');
   }
 
   async getTournament(id: string) {
-    const response = await this.makeRequest(`/tournaments/${id}`);
-    return response;
+    return this.request(`/tournaments/${id}`);
   }
 
   async joinTournament(id: string, txHash: string) {
-    const response = await this.makeRequest(`/tournaments/${id}/join`, {
+    return this.request(`/tournaments/${id}/join`, {
       method: 'POST',
-      body: JSON.stringify({ txHash }),
+      body: JSON.stringify({ txHash })
     });
-    return response;
-  }
-
-  async checkActiveRegistration() {
-    const response = await this.makeRequest('/tournaments/active-registration');
-    return response;
-  }
-
-  // Scores
-  async getGlobalScores() {
-    const response = await this.makeRequest('/scores/global');
-    return response;
-  }
-
-  async submitScore(score: number) {
-    const response = await this.makeRequest('/scores/submit', {
-      method: 'POST',
-      body: JSON.stringify({ value: score }),
-    });
-    return response;
-  }
-
-  // Admin functions
-  async getPayments(search?: string, status?: string) {
-    const params = new URLSearchParams();
-    if (search) params.append('search', search);
-    if (status) params.append('status', status);
-    
-    const response = await this.makeRequest(`/tournaments/payments?${params.toString()}`);
-    return response;
   }
 
   async verifyPayment(paymentId: string) {
-    const response = await this.makeRequest(`/tournaments/payments/${paymentId}/verify`, {
+    return this.request(`/tournaments/payments/${paymentId}/verify`, {
       method: 'PUT'
     });
-    return response;
   }
 
   async distributePrizes(tournamentId: string) {
-    const response = await this.makeRequest(`/tournaments/${tournamentId}/distribute`, {
+    return this.request(`/tournaments/${tournamentId}/distribute`, {
       method: 'POST'
     });
-    return response;
   }
 
-  // Tournament CRUD
-  async createTournament(data: any) {
-    const response = await this.makeRequest('/tournaments', {
+  // Score methods
+  async submitScore(value: number) {
+    return this.request('/scores/submit', {
       method: 'POST',
-      body: JSON.stringify(data)
+      body: JSON.stringify({ value })
     });
-    return response;
   }
 
-  async updateTournament(id: string, data: any) {
-    const response = await this.makeRequest(`/tournaments/${id}`, {
+  async getGlobalLeaderboard() {
+    return this.request('/scores/global');
+  }
+
+  // Leaderboard methods
+  async getLeaderboard() {
+    return this.request('/scores/global');
+  }
+
+  async getTournamentLeaderboard(id: string) {
+    return this.request(`/leaderboard/tournament/${id}`);
+  }
+
+  // User methods
+  async getUserProfile(username: string) {
+    return this.request(`/users/${username}`);
+  }
+
+  async updateProfile(username: string) {
+    return this.request('/users/profile', {
       method: 'PUT',
-      body: JSON.stringify(data)
+      body: JSON.stringify({ username })
     });
-    return response;
-  }
-
-  async deleteTournament(id: string) {
-    const response = await this.makeRequest(`/tournaments/${id}`, {
-      method: 'DELETE'
-    });
-    return response;
-  }
-
-  // User management
-  async getUsers(search?: string) {
-    const params = new URLSearchParams();
-    if (search) params.append('search', search);
-    
-    const response = await this.makeRequest(`/tournaments/users?${params.toString()}`);
-    return response;
-  }
-
-  async updateUser(id: string, data: any) {
-    const response = await this.makeRequest(`/tournaments/users/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data)
-    });
-    return response;
-  }
-
-  async deleteUser(id: string) {
-    const response = await this.makeRequest(`/tournaments/users/${id}`, {
-      method: 'DELETE'
-    });
-    return response;
   }
 }
 
 export const api = new ApiClient();
 
-// Auth hook
+// Auth state management
 export const useAuth = () => {
-  const token = localStorage.getItem('token');
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  
+  const isAuthenticated = !!AuthStorage.getToken();
+  const user = AuthStorage.getUser();
+
   return {
-    isAuthenticated: !!token,
+    isAuthenticated,
     user,
-    token
+    login: api.login.bind(api),
+    register: (email: string, username: string, password: string, usdtWallet: string) => 
+      api.register(email, username, password, usdtWallet),
+    logout: api.logout.bind(api),
   };
+};
+
+// Additional API helpers
+// Check if current user has an active registration in any tournament
+(ApiClient.prototype as any).hasActiveRegistration = function() {
+  return this.request('/tournaments/active-registration');
+};
+
+// Admin: get pending payments
+(ApiClient.prototype as any).getPendingPayments = function() {
+  return this.request('/tournaments/payments/pending');
 };
