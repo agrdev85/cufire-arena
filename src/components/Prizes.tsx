@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Trophy, Medal, Award } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 
@@ -66,6 +67,28 @@ const Prizes = () => {
 
   const base = useMemo(() => detail?.maxAmount || 0, [detail]);
 
+  const getRankIcon = (rank: number) => {
+    switch (rank) {
+      case 1:
+        return <Trophy className="h-6 w-6 text-cyber-gold" />;
+      case 2:
+        return <Medal className="h-6 w-6 text-gray-400" />;
+      case 3:
+        return <Award className="h-6 w-6 text-amber-600" />;
+      default:
+        return <span className="text-lg font-orbitron font-bold text-muted-foreground">#{rank}</span>;
+    }
+  };
+
+  const getRankTextClass = (rank: number) => {
+    switch (rank) {
+      case 1: return "leaderboard-gold";
+      case 2: return "leaderboard-silver";
+      case 3: return "leaderboard-bronze";
+      default: return "text-foreground";
+    }
+  };
+
   return (
     <section id="prizes" className="py-20 px-4 scroll-mt-24">
       <div className="container mx-auto max-w-5xl">
@@ -95,22 +118,36 @@ const Prizes = () => {
 
         <Card className="bg-card/50 backdrop-blur-sm cyber-border">
           <CardHeader>
-            <CardTitle className="text-center font-orbitron">
-              {detail ? `Top 10 • ${detail.name}` : "Selecciona un torneo"}
+            <CardTitle className="text-2xl font-orbitron text-center">
+              <span className="text-neon-purple">
+                {detail ? `Top 10 `: "Selecciona un torneo"}
+              </span> 
+              <span className="text-neon-blue"> 
+                {detail ? `• ${detail.name}` : "Selecciona un torneo"}
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="divide-y divide-border/50 p-0">
             {detail && detail.leaderboard && detail.leaderboard.length > 0 ? (
               detail.leaderboard.map((entry) => (
-                <div key={`${entry.rank}-${entry.username}`} className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 text-center font-orbitron font-bold">#{entry.rank}</div>
+                <div key={`${entry.rank}-${entry.username}`} className={`flex items-center justify-between p-4 border-b border-border/50 last:border-b-0 hover:bg-muted/20 transition-colors ${
+                    entry.rank <= 3 ? 'bg-gradient-to-r from-transparent via-muted/10 to-transparent' : ''
+                  }`}>
+                   <div className="flex items-center space-x-4">
+                    <div className="flex items-center justify-center w-12 h-12">
+                      {getRankIcon(entry.rank)}
+                    </div>
                     <div>
-                      <div className="font-orbitron font-bold text-foreground">{entry.username}</div>
-                      <div className="text-sm text-muted-foreground">{entry.score.toLocaleString()} pts</div>
+                      <div className={`font-orbitron font-bold text-lg ${getRankTextClass(entry.rank)}`}>
+                        {entry.username}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Rango #{entry.rank}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
+                    <div className="text-2xl font-orbitron font-bold text-neon-blue">{entry.score.toLocaleString()} pts</div>
                     <Badge variant="outline" className="text-cyber-gold border-cyber-gold">
                       ${calcPrize(entry.rank, base)} USDT
                     </Badge>
@@ -122,10 +159,6 @@ const Prizes = () => {
             )}
           </CardContent>
         </Card>
-
-        <p className="text-xs text-muted-foreground mt-4 text-center">
-          Nota: Los porcentajes se calculan sobre la meta del torneo (maxAmount). Un porcentaje de reparto configurable se integrará al crear torneos.
-        </p>
       </div>
     </section>
   );

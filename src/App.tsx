@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useState } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import Header from '@/components/Header';
+import Footer from "@/components/Footer";
 import Hero from '@/components/Hero';
 import Tournaments from '@/components/Tournaments';
 import Leaderboard from '@/components/Leaderboard';
@@ -23,6 +24,7 @@ function App() {
               <Tournaments />
               <Leaderboard />
               <Prizes />
+              <Footer />
             </main>
           } />
           <Route path="/admin" element={<Admin />} />

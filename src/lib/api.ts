@@ -1,6 +1,6 @@
 import { AuthStorage } from './auth-storage';
 
-const API_BASE_URL = 'http://localhost:4000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 interface AuthResponse {
   token: string;
@@ -79,7 +79,10 @@ class ApiClient {
 
   // Tournament methods
   async getTournaments() {
-    return this.request('/tournaments');
+    const res = await fetch(`${API_BASE_URL}/tournaments`, {
+      credentials: "include",
+    });
+    return res.json();
   }
 
   async getTournament(id: string) {
@@ -94,9 +97,11 @@ class ApiClient {
   }
 
   async verifyPayment(paymentId: string) {
-    return this.request(`/tournaments/payments/${paymentId}/verify`, {
-      method: 'PUT'
+    const res = await fetch(`${API_BASE_URL}/tournaments/payments/${paymentId}/verify`, {
+      method: "PUT",
+      credentials: "include",
     });
+    return res.json();
   }
 
   async distributePrizes(tournamentId: string) {
@@ -143,17 +148,19 @@ class ApiClient {
     return this.request('/tournaments/active-registration');
   }
 
-  async getPayments(params?: { status?: 'pending' | 'verified' | 'all'; search?: string }) {
-    const qs = new URLSearchParams();
-    if (params?.status && params.status !== 'all') qs.set('status', params.status);
-    if (params?.search && params.search.trim()) qs.set('search', params.search.trim());
-    const suffix = qs.toString() ? `?${qs.toString()}` : '';
-    return this.request(`/tournaments/payments${suffix}`);
+  async getPayments(params: { status: string; search: string }) {
+    const url = new URL(`${API_BASE_URL}/tournaments/payments`);
+    url.searchParams.set("status", params.status);
+    url.searchParams.set("search", params.search);
+    const res = await fetch(url.toString(), {
+      credentials: "include",
+    });
+    return res.json();
   }
 
   // Backwards-compatible helper
   async getPendingPayments() {
-    return this.getPayments({ status: 'pending' });
+    return this.getPayments({ status: 'pending', search: '' });
   }
 
   async createTournament(tournament: any) {
@@ -176,9 +183,13 @@ class ApiClient {
     });
   }
 
-  async getUsers(search?: string) {
-    const qs = search && search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
-    return this.request(`/tournaments/users${qs}`);
+  async getUsers(search: string) {
+    const url = new URL(`${API_BASE_URL}/tournaments/users`);
+    url.searchParams.set("search", search);
+    const res = await fetch(url.toString(), {
+      credentials: "include",
+    });
+    return res.json();
   }
 
   async createUser(user: any) {
@@ -189,16 +200,21 @@ class ApiClient {
   }
 
   async updateUser(id: string, user: any) {
-    return this.request(`/tournaments/users/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(user)
+    const res = await fetch(`${API_BASE_URL}/tournaments/users/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(user),
     });
+    return res.json();
   }
 
   async deleteUser(id: string) {
-    return this.request(`/tournaments/users/${id}`, {
-      method: 'DELETE'
+    const res = await fetch(`${API_BASE_URL}/tournaments/users/${id}`, {
+      method: "DELETE",
+      credentials: "include",
     });
+    return res.json();
   }
 }
 

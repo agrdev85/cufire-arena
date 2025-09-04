@@ -228,7 +228,7 @@ const TournamentCard = ({
                 <div className="space-y-2">
                   <Label>Envía {registrationFee} USDT a:</Label>
                   <div className="p-3 bg-muted/50 rounded">
-                    <div className="text-sm font-mono">TU_WALLET_ADMIN_AQUI</div>
+                    <div className="text-sm font-mono">TWsHMUL1ASws9McBsQZ65XGPj9syMg6Yr9</div>
                     <div className="text-xs text-muted-foreground mt-1">Red: TRC20 (Tron)</div>
                   </div>
                 </div>

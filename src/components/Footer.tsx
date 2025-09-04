@@ -66,7 +66,7 @@ const Footer = () => {
 
         <div className="border-t border-border/50 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
           <div className="text-sm text-muted-foreground">
-            © 2024 CUFIRE Arena. Todos los derechos reservados.
+            © 2025 CUFIRE Arena. Todos los derechos reservados.
           </div>
           <div className="text-sm text-muted-foreground mt-4 md:mt-0">
             Powered by <span className="text-neon-blue">Unity</span> + <span className="text-neon-purple">USDT</span>

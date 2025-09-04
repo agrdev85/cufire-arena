@@ -72,7 +72,7 @@ const Leaderboard = () => {
             CLASIFICACIÓN GLOBAL
           </h2>
           <p className="text-lg text-muted-foreground">
-            Los mejores jugadores de la temporada actual
+            Los mejores jugadores a nivel global
           </p>
         </div>
 
@@ -80,7 +80,7 @@ const Leaderboard = () => {
           <CardHeader>
             <CardTitle className="text-2xl font-orbitron text-center">
               <span className="text-neon-purple">TOP 10 </span>
-              <span className="text-neon-blue">ARENA MASTERS</span>
+              <span className="text-neon-blue">Global</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -134,8 +134,7 @@ const Leaderboard = () => {
 
         <div className="mt-8 text-center">
           <p className="text-sm text-muted-foreground">
-            Actualizado en tiempo real • Próxima actualización en{" "}
-            <span className="text-neon-blue font-mono">02:45</span>
+            Actualizado en tiempo real
           </p>
         </div>
       </div>

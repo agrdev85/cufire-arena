@@ -74,11 +74,19 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get tournament by ID
+// Get tournament by ID - ERROR CORREGIDO AQUÍ
 router.get('/:id', async (req, res) => {
-  try {
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: parseInt(req.params.id) },
+   try {
+     const tournamentId = parseInt(req.params.id);
+     
+     if (isNaN(tournamentId)) {
+       return res.status(400).json({ error: 'ID de torneo inválido' });
+     }
+
+     const tournament = await prisma.tournament.findUnique({
+       where: {
+         id: tournamentId
+       },
       include: {
         registrations: {
           include: {
@@ -337,8 +345,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
     }
 
+    const tournamentId = parseInt(req.params.id);
+    
     const tournament = await prisma.tournament.update({
-      where: { id: parseInt(req.params.id) },
+      where: { id: tournamentId },
       data: req.body
     });
 
@@ -356,8 +366,10 @@ router.delete('/:id', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
     }
 
+    const tournamentId = parseInt(req.params.id);
+    
     await prisma.tournament.delete({
-      where: { id: parseInt(req.params.id) }
+      where: { id: tournamentId }
     });
 
     res.json({ message: 'Torneo eliminado' });
@@ -455,8 +467,10 @@ router.put('/users/:id', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
     }
 
+    const userId = parseInt(req.params.id);
+    
     const user = await prisma.user.update({
-      where: { id: parseInt(req.params.id) },
+      where: { id: userId },
       data: req.body,
       select: {
         id: true,
@@ -483,8 +497,10 @@ router.delete('/users/:id', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
     }
 
+    const userId = parseInt(req.params.id);
+    
     await prisma.user.delete({
-      where: { id: parseInt(req.params.id) }
+      where: { id: userId }
     });
 
     res.json({ message: 'Usuario eliminado' });

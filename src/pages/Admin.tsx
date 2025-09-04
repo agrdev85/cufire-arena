@@ -83,7 +83,7 @@ useEffect(() => {
     fetchData();
     const interval = setInterval(() => {
       fetchData();
-    }, 8000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [isAuthenticated, user, paymentStatus, paymentSearch, userSearch]);
 
