@@ -1,6 +1,6 @@
 import { AuthStorage } from './auth-storage';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const API_BASE_URL = "/api";
 
 interface AuthResponse {
   token: string;
@@ -37,8 +37,22 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Network error' }));
-      throw new Error(error.error || `HTTP ${response.status}`);
+      let message = `HTTP ${response.status}`;
+      try {
+        const data = await response.json();
+        message = data.error || data.message || message;
+      } catch {
+        // ignore parse error
+      }
+      throw new Error(message);
+    }
+
+    // Handle empty/non-JSON responses safely
+    if (response.status === 204) return {};
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await response.text().catch(() => '');
+      try { return JSON.parse(text); } catch { return {}; }
     }
 
     return response.json();

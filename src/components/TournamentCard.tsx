@@ -20,6 +20,8 @@ interface TournamentCardProps {
   startDate?: string;
   frontendState: "Open" | "En curso" | "Finalizado";
   countdownRemaining?: number;
+  prizePercentage?: number;
+  duration?: number;
 }
 
 const TournamentCard = ({
@@ -32,7 +34,9 @@ const TournamentCard = ({
   maxPlayers,
   startDate,
   frontendState,
-  countdownRemaining
+  countdownRemaining,
+  prizePercentage,
+  duration
 }: TournamentCardProps) => {
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
@@ -53,6 +57,28 @@ const TournamentCard = ({
     };
     checkActive();
   }, [isAuthenticated]);
+
+  // Countdown handling: prefer server value, fallback to startDate + duration
+  const [countdown, setCountdown] = useState<number | undefined>(() => {
+    if (typeof countdownRemaining === 'number') return countdownRemaining;
+    if (frontendState === 'En curso' && startDate && typeof duration === 'number') {
+      const end = new Date(startDate).getTime() + duration * 60 * 1000;
+      return Math.max(0, Math.floor((end - Date.now()) / 1000));
+    }
+    return undefined;
+  });
+
+  useEffect(() => {
+    if (frontendState !== 'En curso' || !startDate || typeof duration !== 'number') return;
+    const tick = () => {
+      const end = new Date(startDate).getTime() + duration * 60 * 1000;
+      const secs = Math.max(0, Math.floor((end - Date.now()) / 1000));
+      setCountdown(secs);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [frontendState, startDate, duration]);
 
   const handleJoinTournament = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,13 +166,16 @@ const TournamentCard = ({
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <DollarSign className="h-4 w-4 text-neon-purple" />
-          <div>
-            <div className="text-sm text-muted-foreground">Recaudado</div>
-            <div className="font-bold text-neon-purple">${currentAmount} USDT</div>
-          </div>
-        </div>
+<div className="flex items-center space-x-2">
+  <DollarSign className="h-4 w-4 text-neon-purple" />
+  <div>
+    <div className="text-sm text-muted-foreground">Porcentaje a repartir</div>
+    <div className="font-bold text-neon-purple">{(prizePercentage ?? 0)}%</div>
+    <div className="text-xs text-muted-foreground">
+      Total: ${(((maxAmount ?? currentAmount ?? 0) * ((prizePercentage ?? 0) / 100))).toFixed(2)} USDT
+    </div>
+  </div>
+</div>
 
         {frontendState === "En curso" && countdownRemaining && (
           <div className="flex items-center space-x-2">
