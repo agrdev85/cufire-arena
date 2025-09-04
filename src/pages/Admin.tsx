@@ -74,7 +74,7 @@ const Admin = () => {
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
-useEffect(() => {
+  useEffect(() => {
     if (!isAuthenticated || !user?.isAdmin) {
       window.location.href = '/';
       return;
@@ -83,23 +83,32 @@ useEffect(() => {
     fetchData();
     const interval = setInterval(() => {
       fetchData();
-    }, 60000);
+    }, 30000); // Refresh every 30 seconds
     return () => clearInterval(interval);
-  }, [isAuthenticated, user, paymentStatus, paymentSearch, userSearch]);
+  }, [isAuthenticated, user]);
+
+  // Separate effect for search-dependent fetching
+  useEffect(() => {
+    if (!isAuthenticated || !user?.isAdmin) return;
+    const debounce = setTimeout(() => fetchData(), 500);
+    return () => clearTimeout(debounce);
+  }, [paymentStatus, paymentSearch, userSearch]);
 
   const fetchData = async () => {
     try {
+      setLoading(true);
       const [paymentsRes, tournamentsRes, usersRes] = await Promise.all([
-        api.getPayments({ status: paymentStatus as any, search: paymentSearch }),
-        api.getTournaments(),
-        api.getUsers(userSearch),
+        api.getPayments({ status: paymentStatus as any, search: paymentSearch }).catch(() => ({ payments: [] })),
+        api.getTournaments().catch(() => ({ tournaments: [] })),
+        api.getUsers(userSearch).catch(() => ({ users: [] })),
       ]);
-      setPayments(paymentsRes.payments || []);
-      setTournaments(tournamentsRes.tournaments || []);
-      setUsers(usersRes.users || []);
-      setLoading(false);
+      
+      setPayments(Array.isArray(paymentsRes.payments) ? paymentsRes.payments : []);
+      setTournaments(Array.isArray(tournamentsRes.tournaments) ? tournamentsRes.tournaments : []);
+      setUsers(Array.isArray(usersRes.users) ? usersRes.users : []);
     } catch (error) {
       console.error('Error fetching admin data:', error);
+    } finally {
       setLoading(false);
     }
   };
@@ -139,11 +148,19 @@ useEffect(() => {
   };
 
   const handleDeleteTournament = async (id: number) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este torneo?')) return;
+    
     try {
-      await api.deleteTournament(id.toString());
-      toast({ title: "Torneo eliminado" });
+      const result = await api.deleteTournament(id.toString());
+      if (result.error) throw new Error(result.error);
+      
+      toast({ 
+        title: "Torneo eliminado",
+        description: "El torneo se ha eliminado correctamente"
+      });
       fetchData();
     } catch (error) {
+      console.error('Delete tournament error:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Error al eliminar torneo",
@@ -153,11 +170,19 @@ useEffect(() => {
   };
 
   const handleDeleteUser = async (id: number) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este usuario?')) return;
+    
     try {
-      await api.deleteUser(id.toString());
-      toast({ title: "Usuario eliminado" });
+      const result = await api.deleteUser(id.toString());
+      if (result.error) throw new Error(result.error);
+      
+      toast({ 
+        title: "Usuario eliminado",
+        description: "El usuario se ha eliminado correctamente"
+      });
       fetchData();
     } catch (error) {
+      console.error('Delete user error:', error);
       toast({
         title: "Error", 
         description: error instanceof Error ? error.message : "Error al eliminar usuario",

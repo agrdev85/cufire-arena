@@ -8,6 +8,7 @@ import { Calendar, Users, DollarSign, Trophy, Wallet } from "lucide-react";
 import { api, useAuth } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
+import { useTournamentFinalization } from "@/hooks/useTournamentFinalization";
 
 interface TournamentCardProps {
   id: number;
@@ -79,6 +80,9 @@ const TournamentCard = ({
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, [frontendState, startDate, duration]);
+
+  // Auto-finalize tournament when countdown reaches 0
+  useTournamentFinalization(id, countdown, frontendState);
 
   const handleJoinTournament = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,12 +181,12 @@ const TournamentCard = ({
   </div>
 </div>
 
-        {frontendState === "En curso" && countdownRemaining && (
+        {(frontendState === "En curso" && (countdown !== undefined)) && (
           <div className="flex items-center space-x-2">
             <Calendar className="h-4 w-4 text-cyber-green" />
             <div>
               <div className="text-sm text-muted-foreground">Tiempo restante</div>
-              <div className="font-bold text-cyber-green">{formatCountdown(countdownRemaining)}</div>
+              <div className="font-bold text-cyber-green">{formatCountdown(countdown)}</div>
             </div>
           </div>
         )}

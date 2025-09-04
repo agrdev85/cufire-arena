@@ -13,6 +13,8 @@ interface TournamentDTO {
   startDate?: string | null;
   frontendState: "Open" | "En curso" | "Finalizado";
   countdownRemaining?: number | null;
+  prizePercentage?: number;
+  duration?: number;
 }
 
 const Tournaments = () => {
@@ -34,6 +36,8 @@ const Tournaments = () => {
           startDate: t.startDate ? String(t.startDate) : null,
           frontendState: t.frontendState,
           countdownRemaining: t.countdownRemaining ?? null,
+          prizePercentage: t.prizePercentage ?? 0,
+          duration: t.duration ?? 90,
         }));
         setTournaments(list);
       } catch (error) {
@@ -44,6 +48,9 @@ const Tournaments = () => {
     };
 
     fetchTournaments();
+    // Refresh every 30 seconds for real-time updates
+    const interval = setInterval(fetchTournaments, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
@@ -90,6 +97,8 @@ const Tournaments = () => {
               startDate={t.startDate || undefined}
               frontendState={t.frontendState}
               countdownRemaining={t.countdownRemaining || undefined}
+              prizePercentage={t.prizePercentage}
+              duration={t.duration}
             />
           ))}
         </div>
