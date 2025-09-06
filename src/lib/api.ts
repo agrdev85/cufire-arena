@@ -1,62 +1,67 @@
 import { AuthStorage } from './auth-storage';
 
-const API_BASE_URL = "/api";
+const API_BASE_URL = "http://localhost:4000/api";
 
 interface AuthResponse {
   token: string;
-  user: {
-    id: number;
-    username: string;
-    email: string;
-    usdtWallet: string;
-    isAdmin: boolean;
-  };
-}
-
-interface ApiError {
-  error: string;
+  user: any;
 }
 
 class ApiClient {
-  private getHeaders() {
-    const token = AuthStorage.getToken();
-    return {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` })
-    };
-  }
-
-  async request(endpoint: string, options: RequestInit = {}) {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.getHeaders(),
-        ...options.headers
-      }
-    });
-
-    if (!response.ok) {
-      let message = `HTTP ${response.status}`;
-      try {
-        const data = await response.json();
-        message = data.error || data.message || message;
-      } catch {
-        // ignore parse error
-      }
-      throw new Error(message);
+    private getHeaders() {
+      const token = AuthStorage.getToken();
+      return {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` })
+      };
     }
 
-    // Handle empty/non-JSON responses safely
-    if (response.status === 204) return {};
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await response.text().catch(() => '');
-      try { return JSON.parse(text); } catch { return {}; }
+    async request(endpoint: string, options: RequestInit = {}) {
+      const url = `${API_BASE_URL}${endpoint}`;
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...this.getHeaders(),
+          ...options.headers
+        }
+      });
+
+      if (!response.ok) {
+        let message = `HTTP ${response.status}`;
+        try {
+          const data = await response.json();
+          message = data.error || data.message || message;
+        } catch {
+          // ignore parse error
+        }
+        throw new Error(message);
+      }
+
+      // Handle empty/non-JSON responses safely
+      if (response.status === 204) return {};
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        return await response.text();
+      }
+
+      return response.json();
     }
 
-    return response.json();
-  }
+    // Score & leaderboard methods (unificados)
+    async submitScore(value: number) {
+      return this.request('/scores/submit', {
+        method: 'POST',
+        body: JSON.stringify({ value })
+      });
+    }
+
+    async getGlobalLeaderboard() {
+      return this.request('/scores/leaderboard/global');
+    }
+
+    async getTournamentLeaderboard(tournamentId: string) {
+      return this.request(`/scores/leaderboard/tournament/${tournamentId}`);
+    }
 
   // Auth methods
   async register(email: string, username: string, password: string, usdtWallet: string) {
@@ -124,26 +129,8 @@ class ApiClient {
     });
   }
 
-  // Score methods
-  async submitScore(value: number) {
-    return this.request('/scores/submit', {
-      method: 'POST',
-      body: JSON.stringify({ value })
-    });
-  }
-
-  async getGlobalLeaderboard() {
-    return this.request('/scores/global');
-  }
-
-  // Leaderboard methods
-  async getLeaderboard() {
-    return this.request('/scores/global');
-  }
-
-  async getTournamentLeaderboard(id: string) {
-    return this.request(`/leaderboard/tournament/${id}`);
-  }
+  // Score & leaderboard methods (unificados)
+  // ...existing code...
 
   // User methods
   async getUserProfile(username: string) {

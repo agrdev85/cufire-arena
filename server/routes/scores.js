@@ -94,24 +94,18 @@ router.post('/submit', authMiddleware, async (req, res) => {
   }
 });
 
-// Get global leaderboard
-router.get('/global', async (req, res) => {
-  try {
-    const globalScores = await prisma.score.findMany({
-      where: {
-        mode: "Global",
-        tournamentId: null
-      },
-      include: {
-        user: {
-          select: { username: true }
-        }
-      },
-      orderBy: { value: 'desc' },
-      take: 100
-    });
 
-    const leaderboard = globalScores.map((score, index) => ({
+// Get global leaderboard
+router.get('/leaderboard/global', async (req, res) => {
+  try {
+    const topScores = await prisma.score.findMany({
+  where: { mode: "Tournament" },
+  include: { user: { select: { username: true } } },
+  orderBy: { value: 'desc' },
+  take: 10
+  });
+
+    const leaderboard = topScores.map((score, index) => ({
       rank: index + 1,
       username: score.user.username,
       score: score.value,
@@ -122,6 +116,39 @@ router.get('/global', async (req, res) => {
   } catch (error) {
     console.error('Get global leaderboard error:', error);
     res.status(500).json({ error: 'Error al obtener leaderboard global' });
+  }
+});
+
+// Get tournament leaderboard
+router.get('/leaderboard/tournament/:tournamentId', async (req, res) => {
+  try {
+    const tournamentId = parseInt(req.params.tournamentId);
+    if (isNaN(tournamentId)) {
+      return res.status(400).json({ error: 'ID de torneo inválido' });
+    }
+    const scores = await prisma.score.findMany({
+      where: {
+        tournamentId,
+        mode: "Tournament"
+      },
+      include: {
+        user: {
+          select: { username: true }
+        }
+      },
+      orderBy: { value: 'desc' },
+      take: 100
+    });
+    const leaderboard = scores.map((score, index) => ({
+      rank: index + 1,
+      username: score.user.username,
+      score: score.value,
+      createdAt: score.createdAt
+    }));
+    res.json({ leaderboard });
+  } catch (error) {
+    console.error('Get tournament leaderboard error:', error);
+    res.status(500).json({ error: 'Error al obtener leaderboard de torneo' });
   }
 });
 

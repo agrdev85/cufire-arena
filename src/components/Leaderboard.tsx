@@ -39,7 +39,6 @@ const Leaderboard = () => {
         setLoading(false);
       }
     };
-
     fetchLeaderboard();
   }, []);
   const getRankIcon = (rank: number) => {

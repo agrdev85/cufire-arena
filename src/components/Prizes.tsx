@@ -50,13 +50,16 @@ const Prizes = () => {
     (async () => {
       if (!selectedId) return;
       try {
-        const res = await api.getTournament(selectedId);
-        const t = res.tournament;
+        // Obtener detalles del torneo
+        const tournamentRes = await api.getTournament(selectedId);
+        const t = tournamentRes.tournament;
+        // Obtener leaderboard del torneo desde scores
+        const leaderboardRes = await api.getTournamentLeaderboard(selectedId);
         const d: TournamentDetail = {
           id: t.id,
           name: t.name,
           maxAmount: t.maxAmount ?? 0,
-          leaderboard: (t.leaderboard || []).slice(0, 10),
+          leaderboard: (leaderboardRes.leaderboard || []).slice(0, 10),
         };
         setDetail(d);
       } catch (e) {
@@ -123,7 +126,7 @@ const Prizes = () => {
                 {detail ? `Top 10 `: "Selecciona un torneo"}
               </span> 
               <span className="text-neon-blue"> 
-                {detail ? `• ${detail.name}` : "Selecciona un torneo"}
+                {detail ? `• ${detail.name}` : ""}
               </span>
             </CardTitle>
           </CardHeader>

@@ -83,7 +83,7 @@ const Admin = () => {
     fetchData();
     const interval = setInterval(() => {
       fetchData();
-    }, 30000); // Refresh every 30 seconds
+    }, 60000); // Refresh every 60 seconds
     return () => clearInterval(interval);
   }, [isAuthenticated, user]);
 

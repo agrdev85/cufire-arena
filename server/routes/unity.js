@@ -62,18 +62,23 @@ router.post('/login', async (req, res) => {
 // Unity Check User (web.cs)
 router.post('/checkuser', async (req, res) => {
   try {
-    const { name } = req.body;
-
+    let name = req.body.name;
     if (!name) {
-      return res.send("error: No existe el usuario!");
+      name = req.query.name;
     }
 
+    // Si no se envía name, devuelve lista vacía
+    if (!name) {
+      return res.type('text/plain').send("");
+    }
+
+    // Busca el usuario por nombre
     const user = await prisma.user.findUnique({
       where: { username: name }
     });
 
     if (!user) {
-      return res.send("error: No existe el usuario!");
+      return res.type('text/plain').send("");
     }
 
     res.send("User exists");
@@ -87,63 +92,20 @@ router.post('/checkuser', async (req, res) => {
 // Unity Get Scores (web.cs)
 router.get('/scores', async (req, res) => {
   try {
-    const { name } = req.query;
-    let scores;
-    let usernameToFetch = name || 'Anonymous'; // Usamos un nombre de usuario anónimo si no se proporciona
-    
-    // Primero, encuentra al usuario para obtener su ID
-    const user = await prisma.user.findUnique({
-        where: { username: usernameToFetch }
+    // Lee los 10 mejores puntajes globales de torneos en curso
+    const scores = await prisma.score.findMany({
+      where: { mode: "Tournament" },
+      include: { user: { select: { username: true } } },
+      orderBy: { value: 'desc' },
+      take: 10
     });
-    
-    if (!user) {
-        // Si el usuario no existe, devuelve una lista vacía de puntajes
-        return res.type('text/plain').send("");
+    let result = "";
+    for (const score of scores) {
+      if (score.user && score.user.username) {
+        result += `username=${score.user.username}|Puntos=${score.value};`;
+      }
     }
-
-    // Ahora, busca directamente una inscripción activa para ese usuario.
-    const activeRegistration = await prisma.tournamentRegistration.findFirst({
-        where: {
-            userId: user.id,
-            tournament: {
-                isActive: true
-            }
-        },
-        include: {
-            tournament: true
-        }
-    });
-
-    if (activeRegistration) {
-        const tournamentId = activeRegistration.tournamentId;
-        scores = await prisma.score.findMany({
-            where: { tournamentId: tournamentId, mode: "Tournament" },
-            include: {
-                user: { select: { username: true } }
-            },
-            orderBy: { value: 'desc' },
-            take: 50
-        });
-    } else {
-        // Si no está en un torneo activo, obtiene los puntajes globales
-        scores = await prisma.score.findMany({
-            where: { tournamentId: null, mode: "Global" },
-            include: {
-                user: { select: { username: true } }
-            },
-            orderBy: { value: 'desc' },
-            take: 50
-        });
-    }
-
-    // Filtra los puntajes para asegurar que tienen un usuario válido antes de enviarlos a Unity.
-    const formattedScores = scores
-      .filter(score => score.user && score.user.username)
-      .map(score =>
-        `username=${score.user.username}|Puntos=${score.value}`
-      ).join(';');
-
-    res.type('text/plain').send(formattedScores);
+    res.type('text/plain').send(result);
   } catch (error) {
     console.error('Unity get scores error:', error);
     res.type('text/plain').send("");
@@ -165,6 +127,7 @@ router.post('/score', async (req, res) => {
       return res.send("error: Puntuación inválida");
     }
 
+    // Busca el usuario por nombre
     const user = await prisma.user.findUnique({
       where: { username: name }
     });
@@ -173,45 +136,27 @@ router.post('/score', async (req, res) => {
       return res.send("error: Usuario no encontrado");
     }
 
-    const activeRegistration = await prisma.tournamentRegistration.findFirst({
-      where: {
+    // Busca un torneo activo
+    const activeTournament = await prisma.tournament.findFirst({
+      where: { isActive: true },
+      orderBy: { startDate: 'desc' }
+    });
+
+    if (!activeTournament) {
+      return res.send("error: No hay torneo activo");
+    }
+
+    // Guarda el nuevo puntaje (como escribirHiscore.php)
+    await prisma.score.create({
+      data: {
         userId: user.id,
-        tournament: {
-          isActive: true
-        }
-      },
-      include: {
-        tournament: true
+        tournamentId: activeTournament.id,
+        value: scoreValue,
+        mode: "Tournament"
       }
     });
 
-    if (!activeRegistration) {
-      await prisma.score.create({
-        data: {
-          userId: user.id,
-          value: scoreValue,
-          mode: "Global"
-        }
-      });
-    } else {
-      const tournament = activeRegistration.tournament;
-      const state = getFrontendState(tournament);
-
-      if (state !== "En curso") {
-        return res.send("error: Torneo no acepta puntuaciones");
-      }
-
-      await prisma.score.create({
-        data: {
-          userId: user.id,
-          tournamentId: tournament.id,
-          value: scoreValue,
-          mode: "Tournament"
-        }
-      });
-    }
-
-    res.send("OK");
+    res.send("SERVER: Bien, se escribieron los datos");
   } catch (error) {
     console.error('Unity submit score error:', error);
     res.send("error: Error interno");
