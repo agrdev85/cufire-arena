@@ -19,6 +19,7 @@ interface TournamentCardProps {
   participantCount: number;
   maxPlayers?: number;
   startDate?: string;
+  endDate?: string;
   frontendState: "Open" | "En curso" | "Finalizado";
   countdownRemaining?: number;
   prizePercentage?: number;
@@ -34,6 +35,7 @@ const TournamentCard = ({
   participantCount,
   maxPlayers,
   startDate,
+  endDate,
   frontendState,
   countdownRemaining,
   prizePercentage,
@@ -197,6 +199,16 @@ const TournamentCard = ({
             <div>
               <div className="text-sm text-muted-foreground">Inicio</div>
               <div className="font-bold text-neon-purple">{new Date(startDate).toLocaleString()}</div>
+            </div>
+          </div>
+        )}
+        {/* Mostrar endDate si el torneo está Finalizado y existe endDate */}
+        {frontendState === "Finalizado" && endDate && (
+          <div className="flex items-center space-x-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <div>
+              <div className="text-sm text-muted-foreground">Finalización</div>
+              <div className="font-bold text-muted-foreground">{new Date(endDate).toLocaleString()}</div>
             </div>
           </div>
         )}

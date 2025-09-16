@@ -2,40 +2,33 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
 
-
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Almacenamiento simple de sesiones en memoria (sistema por IP)
+const activeSessions = new Map();
 
-// Middleware para parsear 'application/x-www-form-urlencoded'
-router.use(express.urlencoded({ extended: true }));
-
-
-// Función auxiliar para determinar el estado de un torneo
-function getFrontendState(tournament, now = new Date()) {
-  if (!tournament.isActive) return "Finalizado";
-
-  const maxAmount = tournament.maxAmount || Infinity;
-
-  if (tournament.currentAmount >= maxAmount) {
-    if (tournament.startDate && tournament.duration) {
-      const endAt = new Date(tournament.startDate.getTime() + tournament.duration * 60000);
-      return now < endAt ? "En curso" : "Finalizado";
-    }
-    return "En curso";
+// Middleware para identificar usuario por IP (sistema original)
+const identifyUser = (req, res, next) => {
+  const userIP = req.ip || req.connection.remoteAddress;
+  req.userIP = userIP;
+  
+  if (activeSessions.has(userIP)) {
+    req.user = activeSessions.get(userIP);
   }
+  
+  next();
+};
 
-  return "Open";
-}
+router.use(identifyUser);
 
-
-// Unity Login (Server.cs)
+// Unity Login - Compatible EXACTO con index.php
 router.post('/login', async (req, res) => {
   try {
     const { name, password } = req.body;
 
     if (!name || !password) {
-      return res.send("error: Name o Password Invalid!");
+      return res.type('text/plain').send("SERVER: error, enter a valid username & password");
     }
 
     const user = await prisma.user.findUnique({
@@ -43,125 +36,238 @@ router.post('/login', async (req, res) => {
     });
 
     if (!user) {
-      return res.send("error: Name o Password Invalid!");
+      return res.type('text/plain').send("SERVER: error, invalid username or password");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.send("error: Name o Password Invalid!");
+      return res.type('text/plain').send("SERVER: error, invalid username or password");
     }
 
-    res.send("Login OK");
+    // Guardar sesión asociada a esta IP (sistema original)
+    const userIP = req.ip || req.connection.remoteAddress;
+    activeSessions.set(userIP, {
+      id: user.id,
+      username: user.username
+    });
+
+    console.log(`Usuario ${user.username} logueado desde IP: ${userIP}`);
+
+    // Respuesta EXACTA como index.php
+    res.type('text/plain').send(`SERVER: ID#${user.id} - ${user.username} Aprobado - ${user.aprobado ? 1 : 0}`);
   } catch (error) {
     console.error('Unity login error:', error);
-    res.send("error: Internal Server Error");
+    res.type('text/plain').send("SERVER: error, Internal Server Error");
   }
 });
 
+// Middleware para verificar autenticación
+const requireAuth = (req, res, next) => {
+  if (!req.user) {
+    return res.type('text/plain').send("SERVER: error, usuario no autenticado");
+  }
+  next();
+};
 
-// Unity Check User (web.cs)
-router.post('/checkuser', async (req, res) => {
+// Obtener scores - Compatible EXACTO con leerHiscore.php
+router.get('/scores', requireAuth, async (req, res) => {
   try {
-    let name = req.body.name;
-    if (!name) {
-      name = req.query.name;
-    }
+    const username = req.user.username;
 
-    // Si no se envía name, devuelve lista vacía
-    if (!name) {
-      return res.type('text/plain').send("");
-    }
+    console.log(`Buscando scores para usuario: ${username} desde IP: ${req.userIP}`);
 
-    // Busca el usuario por nombre
+    // Buscar usuario y sus torneos (activos y finalizados)
     const user = await prisma.user.findUnique({
-      where: { username: name }
+      where: { username: username },
+      include: {
+        tournaments: {
+          include: {
+            tournament: true
+          }
+        }
+      }
     });
 
     if (!user) {
-      return res.type('text/plain').send("");
+      return res.type('text/plain').send("SERVER: error, usuario no encontrado");
     }
 
-    res.send("User exists");
-  } catch (error) {
-    console.error('Unity check user error:', error);
-    res.send("error: Internal Server Error");
-  }
-});
+    if (user.tournaments.length === 0) {
+      return res.type('text/plain').send("SERVER: error, No estas inscrito aun");
+    }
 
+    const tournamentIds = user.tournaments.map(t => t.tournamentId);
 
-// Unity Get Scores (web.cs)
-router.get('/scores', async (req, res) => {
-  try {
-    // Lee los 10 mejores puntajes globales de torneos en curso
+    // Leer top 10 scores SOLO de los torneos donde está inscrito
     const scores = await prisma.score.findMany({
-      where: { mode: "Tournament" },
-      include: { user: { select: { username: true } } },
+      where: {
+        tournamentId: { in: tournamentIds },
+        mode: "Tournament"
+      },
+      include: { 
+        user: { select: { username: true } }
+      },
       orderBy: { value: 'desc' },
       take: 10
     });
-    let result = "";
-    for (const score of scores) {
-      if (score.user && score.user.username) {
-        result += `username=${score.user.username}|Puntos=${score.value};`;
-      }
+
+    if (scores.length === 0) {
+      return res.type('text/plain').send("SERVER: error, no hay datos para leer");
     }
+
+    // FORMATO EXACTO de leerHiscore.php: "usernameNombre|Puntos100;usernameOtro|Puntos90;"
+    let result = "";
+    scores.forEach(score => {
+      if (score.user && score.user.username) {
+        result += `username${score.user.username}|Puntos${score.value};`;
+      }
+    });
+
+    console.log(`Enviando scores (formato exacto PHP): ${result}`);
     res.type('text/plain').send(result);
   } catch (error) {
     console.error('Unity get scores error:', error);
-    res.type('text/plain').send("");
+    res.type('text/plain').send("SERVER: error, al leer datos en leerHiscore");
   }
 });
 
-
-// Unity Submit Score (web.cs)
+// Enviar score - Compatible EXACTO con escribirHiscore.php
 router.post('/score', async (req, res) => {
   try {
+    // Formato EXACTO de escribirHiscore.php: parámetros 'name' y 'puntos'
     const { name, puntos } = req.body;
 
+    console.log(`Recibiendo score: name=${name}, puntos=${puntos}`);
+
     if (!name || !puntos) {
-      return res.send("error: Datos incompletos");
+      return res.type('text/plain').send("SERVER: error, entre datos correctos");
     }
 
     const scoreValue = parseInt(puntos);
     if (isNaN(scoreValue) || scoreValue < 0) {
-      return res.send("error: Puntuación inválida");
+      return res.type('text/plain').send("SERVER: error, entre datos correctos");
     }
 
-    // Busca el usuario por nombre
+    // Buscar usuario por nombre (sin autenticación por sesión, como en PHP)
     const user = await prisma.user.findUnique({
-      where: { username: name }
+      where: { username: name },
+      include: {
+        tournaments: {
+          include: {
+            tournament: true
+          }
+        }
+      }
     });
 
     if (!user) {
-      return res.send("error: Usuario no encontrado");
+      return res.type('text/plain').send("SERVER: error, entre datos correctos");
     }
 
-    // Busca un torneo activo
-    const activeTournament = await prisma.tournament.findFirst({
-      where: { isActive: true },
-      orderBy: { startDate: 'desc' }
+    if (user.tournaments.length === 0) {
+      return res.type('text/plain').send("SERVER: error, usuario no inscrito en torneo");
+    }
+
+    // Buscar torneo en curso entre todas las inscripciones
+    const now = new Date();
+    const currentTournament = user.tournaments.find(treg => {
+      const state = require('./tournaments').getFrontendState(treg.tournament, now);
+      return state === "En curso";
     });
-
-    if (!activeTournament) {
-      return res.send("error: No hay torneo activo");
+    if (!currentTournament) {
+      return res.type('text/plain').send("SERVER: error, el torneo no está en curso");
     }
-
-    // Guarda el nuevo puntaje (como escribirHiscore.php)
+    // Insertar score vinculado al torneo en curso
     await prisma.score.create({
       data: {
         userId: user.id,
-        tournamentId: activeTournament.id,
+        tournamentId: currentTournament.tournament.id,
         value: scoreValue,
         mode: "Tournament"
       }
     });
-
-    res.send("SERVER: Bien, se escribieron los datos");
+    // Respuesta EXACTA de escribirHiscore.php
+    res.type('text/plain').send("SERVER: Bien, se escribieron los datos");
   } catch (error) {
     console.error('Unity submit score error:', error);
-    res.send("error: Error interno");
+    res.type('text/plain').send("SERVER: error, Internal Server Error");
   }
 });
 
+// Ruta alternativa para scores con parámetro de usuario (sin autenticación)
+router.get('/scores/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+
+    console.log(`Buscando scores para usuario por parámetro: ${username}`);
+
+    const user = await prisma.user.findUnique({
+      where: { username: username },
+      include: {
+        tournaments: {
+          include: {
+            tournament: true
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.type('text/plain').send("SERVER: error, usuario no encontrado");
+    }
+
+    if (user.tournaments.length === 0) {
+      return res.type('text/plain').send("SERVER: error, No estas inscrito aun");
+    }
+
+    const tournamentIds = user.tournaments.map(t => t.tournamentId);
+
+    const scores = await prisma.score.findMany({
+      where: {
+        tournamentId: { in: tournamentIds },
+        mode: "Tournament"
+      },
+      include: { 
+        user: { select: { username: true } }
+      },
+      orderBy: { value: 'desc' },
+      take: 10
+    });
+
+    if (scores.length === 0) {
+      return res.type('text/plain').send("SERVER: error, no hay datos para leer");
+    }
+
+    // Formato EXACTO de leerHiscore.php
+    let result = "";
+    scores.forEach(score => {
+      if (score.user && score.user.username) {
+        result += `username${score.user.username}|Puntos${score.value};`;
+      }
+    });
+
+    console.log(`Enviando scores: ${result}`);
+    res.type('text/plain').send(result);
+  } catch (error) {
+    console.error('Unity get scores error:', error);
+    res.type('text/plain').send("SERVER: error, al leer datos en leerHiscore");
+  }
+});
+
+// Ruta de health check
+router.get('/health', (req, res) => {
+  res.type('text/plain').send("SERVER: OK - Server is running");
+});
+
+// Limpiar sesiones antiguas cada hora
+setInterval(() => {
+  console.log(`Limpiando sesiones. Actuales: ${activeSessions.size}`);
+  if (activeSessions.size > 50) {
+    const keys = Array.from(activeSessions.keys());
+    for (let i = 0; i < 10; i++) {
+      activeSessions.delete(keys[i]);
+    }
+  }
+}, 60 * 60 * 1000);
 
 module.exports = router;

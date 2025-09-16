@@ -16,11 +16,15 @@ interface User {
 }
 
 interface UserFormProps {
-  user: User;
-  onSave: () => void;
+  user?: User;
+  onSave: (userData: User) => Promise<void>; // Update this type
+  onCancel: () => void;
+  isSaving?: boolean;
+
 }
 
-const UserForm = ({ user, onSave }: UserFormProps) => {
+
+const UserForm = ({ user, onSave, onCancel, isSaving }: UserFormProps) => {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     username: user.username,
@@ -37,7 +41,7 @@ const UserForm = ({ user, onSave }: UserFormProps) => {
     try {
       await api.updateUser(user.id.toString(), formData);
       toast({ title: "Usuario actualizado" });
-      onSave();
+      onSave({ ...formData, id: user.id });
     } catch (error) {
       toast({
         title: "Error",

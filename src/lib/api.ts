@@ -8,6 +8,10 @@ interface AuthResponse {
 }
 
 class ApiClient {
+    private lastRequest: number = 0;
+    private minRequestInterval: number = 1000; // 1 segundo entre solicitudes
+    private maxRetries: number = 3;
+
     private getHeaders() {
       const token = AuthStorage.getToken();
       return {
@@ -16,10 +20,28 @@ class ApiClient {
       };
     }
 
-    async request(endpoint: string, options: RequestInit = {}) {
+    private async sleep(ms: number) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async request(endpoint: string, options: RequestInit = {}, retryCount = 0) {
+      // Rate limiting
+      const now = Date.now();
+      const timeSinceLastRequest = now - this.lastRequest;
+      if (timeSinceLastRequest < this.minRequestInterval) {
+        await this.sleep(this.minRequestInterval - timeSinceLastRequest);
+      }
+      this.lastRequest = Date.now();
+
       const url = `${API_BASE_URL}${endpoint}`;
+      console.log(`Making API request to: ${url}`, { 
+        method: options.method || 'GET',
+        headers: options.headers
+      });
+      
       const response = await fetch(url, {
         ...options,
+        credentials: 'include',
         headers: {
           ...this.getHeaders(),
           ...options.headers
@@ -28,12 +50,29 @@ class ApiClient {
 
       if (!response.ok) {
         let message = `HTTP ${response.status}`;
+        let data;
+        
         try {
-          const data = await response.json();
-          message = data.error || data.message || message;
-        } catch {
-          // ignore parse error
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+            message = data.error || data.message || message;
+            console.error('API Error:', { status: response.status, data });
+          } else {
+            const text = await response.text();
+            console.error('API Error (non-JSON):', { status: response.status, text });
+          }
+        } catch (parseError) {
+          console.error('Error parsing response:', parseError);
         }
+
+        // Retry on certain status codes
+        if (retryCount < this.maxRetries && (response.status === 429 || response.status >= 500)) {
+          console.warn(`Request failed with ${response.status}, retrying... (attempt ${retryCount + 1}/${this.maxRetries})`);
+          await this.sleep(Math.pow(2, retryCount) * 1000); // Exponential backoff
+          return this.request(endpoint, options, retryCount + 1);
+        }
+
         throw new Error(message);
       }
 
@@ -47,7 +86,7 @@ class ApiClient {
       return response.json();
     }
 
-    // Score & leaderboard methods (unificados)
+    // Score & leaderboard methods
     async submitScore(value: number) {
       return this.request('/scores/submit', {
         method: 'POST',
@@ -63,160 +102,146 @@ class ApiClient {
       return this.request(`/scores/leaderboard/tournament/${tournamentId}`);
     }
 
-  // Auth methods
-  async register(email: string, username: string, password: string, usdtWallet: string) {
-    const data = await this.request('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ email, username, password, usdtWallet })
-    });
+    // Auth methods
+    async register(email: string, username: string, password: string, usdtWallet: string) {
+      const data = await this.request('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ email, username, password, usdtWallet })
+      });
 
-    if (data.token && data.user) {
-      AuthStorage.setToken(data.token);
-      AuthStorage.setUser(data.user);
+      if (data.token && data.user) {
+        AuthStorage.setToken(data.token);
+        AuthStorage.setUser(data.user);
+      }
+
+      return data;
     }
 
-    return data;
-  }
+    async login(email: string, password: string) {
+      const data = await this.request('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
 
-  async login(email: string, password: string) {
-    const data = await this.request('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password })
-    });
+      if (data.token && data.user) {
+        AuthStorage.setToken(data.token);
+        AuthStorage.setUser(data.user);
+      }
 
-    if (data.token && data.user) {
-      AuthStorage.setToken(data.token);
-      AuthStorage.setUser(data.user);
+      return data;
     }
 
-    return data;
-  }
+    logout() {
+      AuthStorage.clear();
+    }
 
-  logout() {
-    AuthStorage.clear();
-  }
+    // Tournament methods
+    async getTournaments(options: RequestInit = {}) {
+      return this.request('/tournaments', options);
+    }
 
-  // Tournament methods
-  async getTournaments() {
-    const res = await fetch(`${API_BASE_URL}/tournaments`, {
-      credentials: "include",
-    });
-    return res.json();
-  }
+    async getTournament(id: string) {
+      return this.request(`/tournaments/${id}`);
+    }
 
-  async getTournament(id: string) {
-    return this.request(`/tournaments/${id}`);
-  }
+    async createTournament(tournament: any) {
+      return this.request('/tournaments', {
+        method: 'POST',
+        body: JSON.stringify(tournament)
+      });
+    }
 
-  async joinTournament(id: string, txHash: string) {
-    return this.request(`/tournaments/${id}/join`, {
-      method: 'POST',
-      body: JSON.stringify({ txHash })
-    });
-  }
+    async updateTournament(id: string, tournament: any) {
+      return this.request(`/tournaments/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(tournament)
+      });
+    }
 
-  async verifyPayment(paymentId: string) {
-    const res = await fetch(`${API_BASE_URL}/tournaments/payments/${paymentId}/verify`, {
-      method: "PUT",
-      credentials: "include",
-    });
-    return res.json();
-  }
+    async deleteTournament(id: string) {
+      return this.request(`/tournaments/${id}`, {
+        method: 'DELETE'
+      });
+    }
 
-  async distributePrizes(tournamentId: string) {
-    return this.request(`/tournaments/${tournamentId}/distribute`, {
-      method: 'POST'
-    });
-  }
+    async joinTournament(id: string, txHash: string) {
+      return this.request(`/tournaments/${id}/join`, {
+        method: 'POST',
+        body: JSON.stringify({ txHash })
+      });
+    }
 
-  // Score & leaderboard methods (unificados)
-  // ...existing code...
+    async verifyPayment(paymentId: string) {
+      return this.request(`/payments/${paymentId}/verify`, {
+        method: 'PUT'
+      });
+    }
 
-  // User methods
-  async getUserProfile(username: string) {
-    return this.request(`/users/${username}`);
-  }
+    async distributePrizes(tournamentId: string) {
+      return this.request(`/tournaments/${tournamentId}/distribute`, {
+        method: 'POST'
+      });
+    }
 
-  async updateProfile(username: string) {
-    return this.request('/users/profile', {
-      method: 'PUT',
-      body: JSON.stringify({ username })
-    });
-  }
+    // User methods
+    async getUserProfile(username: string) {
+      return this.request(`/users/${username}`);
+    }
 
-  // Additional methods
-  async hasActiveRegistration() {
-    return this.request('/tournaments/active-registration');
-  }
+    async getUsers(search: string = '', options: RequestInit = {}) {
+      const endpoint = '/users' + (search ? `?search=${encodeURIComponent(search)}` : '');
+      return this.request(endpoint, options);
+    }
 
-  async getPayments(params: { status: string; search: string }) {
-    const url = new URL(`${API_BASE_URL}/tournaments/payments`);
-    url.searchParams.set("status", params.status);
-    url.searchParams.set("search", params.search);
-    const res = await fetch(url.toString(), {
-      credentials: "include",
-    });
-    return res.json();
-  }
+    async createUser(user: any) {
+      return this.request('/users', {
+        method: 'POST',
+        body: JSON.stringify(user)
+      });
+    }
 
-  // Backwards-compatible helper
-  async getPendingPayments() {
-    return this.getPayments({ status: 'pending', search: '' });
-  }
+    async updateUser(id: string, user: any) {
+      return this.request(`/users/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(user)
+      });
+    }
 
-  async createTournament(tournament: any) {
-    return this.request('/tournaments', {
-      method: 'POST',
-      body: JSON.stringify(tournament)
-    });
-  }
+    async deleteUser(id: string) {
+      return this.request(`/users/${id}`, {
+        method: 'DELETE'
+      });
+    }
 
-  async updateTournament(id: string, tournament: any) {
-    return this.request(`/tournaments/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(tournament)
-    });
-  }
+    async updateProfile(userData: { username?: string; usdtWallet?: string }) {
+      return this.request('/users/profile', {
+        method: 'PUT',
+        body: JSON.stringify(userData)
+      });
+    }
 
-  async deleteTournament(id: string) {
-    return this.request(`/tournaments/${id}`, {
-      method: 'DELETE'
-    });
-  }
+    async getUserStats(userId: string) {
+      return this.request(`/users/${userId}/stats`);
+    }
 
-  async getUsers(search: string) {
-    const url = new URL(`${API_BASE_URL}/tournaments/users`);
-    url.searchParams.set("search", search);
-    const res = await fetch(url.toString(), {
-      credentials: "include",
-    });
-    return res.json();
-  }
+    // Payment methods
+    async getPayments(params: { status: string; search: string }, options: RequestInit = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.status) searchParams.set("status", params.status);
+    if (params.search) searchParams.set("search", params.search);
+    const endpoint = `/payments${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    return this.request(endpoint, options);
+    }
 
-  async createUser(user: any) {
-    return this.request('/users', {
-      method: 'POST',
-      body: JSON.stringify(user)
-    });
-  }
+    // Additional methods
+    async hasActiveRegistration() {
+      return this.request('/tournaments/active-registration');
+    }
 
-  async updateUser(id: string, user: any) {
-    const res = await fetch(`${API_BASE_URL}/tournaments/users/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(user),
-    });
-    return res.json();
-  }
-
-  async deleteUser(id: string) {
-    const res = await fetch(`${API_BASE_URL}/tournaments/users/${id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    return res.json();
-  }
+    // Backwards-compatible helper
+    async getPendingPayments() {
+      return this.getPayments({ status: 'pending', search: '' });
+    }
 }
 
 export const api = new ApiClient();

@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["filterJson"]
 }
 
 datasource db {
@@ -8,18 +9,18 @@ datasource db {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  username     String   @unique
-  email        String   @unique
-  password     String
-  usdtWallet   String   @unique
-  isAdmin      Boolean  @default(false)
-  gamesPlayed  Int      @default(0)
-  gamesWon     Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id           Int       @id @default(autoincrement())
+  username     String    @unique @db.VarChar(255)
+  email        String    @unique @db.VarChar(255)
+  password     String    @db.VarChar(255)
+  usdtWallet   String    @unique @db.VarChar(255)
+  isAdmin      Boolean   @default(false)
+  gamesPlayed  Int       @default(0)
+  gamesWon     Int       @default(0)
+  createdAt    DateTime  @default(now()) @db.Timestamp(6)
+  updatedAt    DateTime  @updatedAt @db.Timestamp(6)
   
-  // Relations
+  // Relaciones
   scores       Score[]
   payments     Payment[]
   tournaments  TournamentRegistration[]
@@ -29,21 +30,21 @@ model User {
 
 model Tournament {
   id              Int       @id @default(autoincrement())
-  name            String
-  description     String?
+  name            String    @db.VarChar(255)
+  description     String?   @db.Text
   maxPlayers      Int?
-  maxAmount       Float?
-  currentAmount   Float     @default(0)
-  registrationFee Float     @default(10)
-  prizePercentage Float     @default(70)  // Percentage of maxAmount to distribute
-  startDate       DateTime?
-  endDate         DateTime?
+  maxAmount       Decimal?  @db.Decimal(10, 2)
+  currentAmount   Decimal   @default(0) @db.Decimal(10, 2)
+  registrationFee Decimal   @default(10) @db.Decimal(10, 2)
+  prizePercentage Decimal   @default(70) @db.Decimal(5, 2)
+  startDate       DateTime? @db.Timestamp(6)
+  endDate         DateTime? @db.Timestamp(6)
   duration        Int?      // minutos
   isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime  @default(now()) @db.Timestamp(6)
+  updatedAt       DateTime  @updatedAt @db.Timestamp(6)
   
-  // Relations
+  // Relaciones
   registrations   TournamentRegistration[]
   payments        Payment[]
   scores          Score[]
@@ -52,46 +53,46 @@ model Tournament {
 }
 
 model TournamentRegistration {
-  id            Int @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
   userId        Int
   tournamentId  Int
-  registeredAt  DateTime @default(now())
+  registeredAt  DateTime  @default(now()) @db.Timestamp(6)
   
-  // Relations
-  user          User       @relation(fields: [userId], references: [id])
-  tournament    Tournament @relation(fields: [tournamentId], references: [id])
+  // Relaciones
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   
   @@unique([userId, tournamentId])
   @@map("tournament_registrations")
 }
 
 model Payment {
-  id            Int @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
   userId        Int
   tournamentId  Int
-  txHash        String
-  amount        Float
-  isActive      Boolean @default(false) // false=pending, true=verified
-  createdAt     DateTime @default(now())
+  txHash        String    @db.VarChar(255)
+  amount        Decimal   @db.Decimal(10, 2)
+  isActive      Boolean   @default(false) // false=pending, true=verified
+  createdAt     DateTime  @default(now()) @db.Timestamp(6)
   
-  // Relations
-  user          User       @relation(fields: [userId], references: [id])
-  tournament    Tournament @relation(fields: [tournamentId], references: [id])
+  // Relaciones
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   
   @@map("payments")
 }
 
 model Score {
-  id            Int @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
   userId        Int
-  tournamentId  Int?
+  tournamentId  Int
   value         Int
-  mode          String
-  createdAt     DateTime @default(now())
+  mode          String    @db.VarChar(50)
+  createdAt     DateTime  @default(now()) @db.Timestamp(6)
   
-  // Relations
-  user          User        @relation(fields: [userId], references: [id])
-  tournament    Tournament? @relation(fields: [tournamentId], references: [id])
+  // Relaciones
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   
   @@map("scores")
 }

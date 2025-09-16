@@ -91,7 +91,7 @@ const Leaderboard = () => {
               ) : leaderboard.length > 0 ? (
                 leaderboard.map((entry, index) => (
                 <div
-                  key={entry.username}
+                  key={index}
                   className={`flex items-center justify-between p-4 border-b border-border/50 last:border-b-0 hover:bg-muted/20 transition-colors ${
                     entry.rank <= 3 ? 'bg-gradient-to-r from-transparent via-muted/10 to-transparent' : ''
                   }`}

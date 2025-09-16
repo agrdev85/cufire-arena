@@ -8,7 +8,8 @@ import Tournaments from '@/components/Tournaments';
 import Leaderboard from '@/components/Leaderboard';
 import Prizes from '@/components/Prizes';
 import { AuthModal } from '@/components/AuthModal';
-import Admin from '@/pages/Admin';
+import AdminPanel from '@/pages/AdminPanel';
+import ProfilePanel from './components/ProfilePanel';
 
 function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -27,7 +28,8 @@ function App() {
               <Footer />
             </main>
           } />
-          <Route path="/admin" element={<Admin />} />
+          <Route path="/admin" element={<AdminPanel />} />
+          <Route path="/profile" element={<ProfilePanel />} />
         </Routes>
         <AuthModal 
           isOpen={authModalOpen} 

@@ -9,21 +9,28 @@ interface TournamentOption {
   id: number;
   name: string;
   maxAmount?: number;
+  prizePercentage?: number;
   frontendState: "Open" | "En curso" | "Finalizado";
+  startDate?: string;
+  endDate?: string;
 }
 
 interface TournamentDetail {
   id: number;
   name: string;
   maxAmount?: number;
+  prizePercentage?: number;
   leaderboard: { rank: number; username: string; score: number }[];
+  startDate?: string;
+  endDate?: string;
+  frontendState: "Open" | "En curso" | "Finalizado";
 }
 
 const PRIZE_MAP = [0.30, 0.18, 0.13, 0.09, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05];
 
-const calcPrize = (rank: number, base: number) => {
+const calcPrize = (rank: number, base: number, prizePercentage: number) => {
   if (rank < 1 || rank > 10) return 0;
-  return Math.floor((base * PRIZE_MAP[rank - 1]) * 100) / 100;
+  return Math.round((base * PRIZE_MAP[rank - 1]) * 100) / 100;
 };
 
 const Prizes = () => {
@@ -34,12 +41,19 @@ const Prizes = () => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.getTournaments();
-        const options: TournamentOption[] = (res.tournaments || [])
-          .filter((t: any) => t.isActive)
-          .map((t: any) => ({ id: t.id, name: t.name, maxAmount: t.maxAmount ?? 0, frontendState: t.frontendState }));
-        setTournaments(options);
-        if (options.length > 0) setSelectedId(String(options[0].id));
+          const res = await api.getTournaments();
+          // Mostrar todos los torneos, activos y finalizados
+          const options: TournamentOption[] = (res.tournaments || [])
+            .map((t: any) => ({
+              id: t.id,
+              name: t.name,
+              maxAmount: t.maxAmount ?? 0,
+              frontendState: t.frontendState,
+              startDate: t.startDate,
+              endDate: t.endDate
+            }));
+          setTournaments(options);
+          if (options.length > 0) setSelectedId(String(options[0].id));
       } catch (e) {
         // silent
       }
@@ -59,7 +73,11 @@ const Prizes = () => {
           id: t.id,
           name: t.name,
           maxAmount: t.maxAmount ?? 0,
+          prizePercentage: t.prizePercentage ?? 0,
           leaderboard: (leaderboardRes.leaderboard || []).slice(0, 10),
+          startDate: t.startDate,
+          endDate: t.endDate,
+          frontendState: t.frontendState
         };
         setDetail(d);
       } catch (e) {
@@ -68,7 +86,7 @@ const Prizes = () => {
     })();
   }, [selectedId]);
 
-  const base = useMemo(() => detail?.maxAmount || 0, [detail]);
+  const base = useMemo(() => (detail?.maxAmount * detail?.prizePercentage/100) || 0, [detail]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -100,7 +118,7 @@ const Prizes = () => {
             PREMIOS
           </h1>
           <p className="text-lg text-muted-foreground">
-            Selecciona un torneo activo para ver el reparto de premios Top-10
+            Selecciona un torneo para ver el reparto de premios Top-10
           </p>
         </div>
 
@@ -129,6 +147,21 @@ const Prizes = () => {
                 {detail ? `• ${detail.name}` : ""}
               </span>
             </CardTitle>
+            {/* Mostrar fechas de inicio y fin si el torneo está finalizado */}
+            {detail && detail.frontendState === "Finalizado" && (
+              <div className="flex flex-col items-center mt-2">
+                {detail.startDate && (
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-bold">Inicio:</span> {new Date(detail.startDate).toLocaleString()}
+                  </div>
+                )}
+                {detail.endDate && (
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-bold">Finalización:</span> {new Date(detail.endDate).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            )}
           </CardHeader>
           <CardContent className="divide-y divide-border/50 p-0">
             {detail && detail.leaderboard && detail.leaderboard.length > 0 ? (
@@ -152,7 +185,7 @@ const Prizes = () => {
                   <div className="text-right">
                     <div className="text-2xl font-orbitron font-bold text-neon-blue">{entry.score.toLocaleString()} pts</div>
                     <Badge variant="outline" className="text-cyber-gold border-cyber-gold">
-                      ${calcPrize(entry.rank, base)} USDT
+                      ${calcPrize(entry.rank, base, detail?.prizePercentage)} USDT
                     </Badge>
                   </div>
                 </div>

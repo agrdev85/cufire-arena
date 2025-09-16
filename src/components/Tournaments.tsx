@@ -48,8 +48,8 @@ const Tournaments = () => {
     };
 
     fetchTournaments();
-    // Refresh every 30 seconds for real-time updates
-    const interval = setInterval(fetchTournaments, 30000);
+    // Refresh every 10 seconds for real-time updates
+    const interval = setInterval(fetchTournaments, 10000);
     return () => clearInterval(interval);
   }, []);
 

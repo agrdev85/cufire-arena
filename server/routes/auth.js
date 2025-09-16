@@ -93,7 +93,7 @@ router.post('/login', async (req, res) => {
 
     // Find user
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email: email }
     });
 
     if (!user) {

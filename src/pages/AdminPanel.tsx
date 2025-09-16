@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useAuth, api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, DollarSign, Trophy, Users, Plus, Edit, Trash2, Search, RefreshCw } from "lucide-react";
+import { CheckCircle, DollarSign, Trophy, Users, Plus, Edit, Trash2, Search, UserPlus } from "lucide-react";
 import TournamentForm from "@/components/TournamentForm";
 import UserForm from "@/components/UserForm";
 
@@ -42,6 +43,10 @@ interface Tournament {
   duration?: number;
   frontendState: string;
   isActive: boolean;
+  participantCount: number;
+  participants: string[];
+  startDate?: string;
+  endDate?: string;
 }
 
 interface User {
@@ -53,6 +58,7 @@ interface User {
   gamesPlayed: number;
   gamesWon: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 const Admin = () => {
@@ -62,7 +68,6 @@ const Admin = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   
   // Search states
   const [paymentSearch, setPaymentSearch] = useState('');
@@ -72,54 +77,122 @@ const Admin = () => {
   
   // Dialog states
   const [tournamentDialog, setTournamentDialog] = useState(false);
+  const [userDialog, setUserDialog] = useState(false);
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const fetchData = async () => {
+  // Usar useCallback para memoizar fetchData
+  const fetchData = useCallback(async (isPolling = false) => {
+    if (!isAuthenticated || !user?.isAdmin) return;
+    
+    // Si es una llamada de polling y hay una búsqueda activa, no hacer la llamada
+    if (isPolling && (paymentSearch || userSearch)) return;
+
+    let abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 5000); // 5 segundos timeout
+
     try {
-      setRefreshing(true);
+      if (!isPolling) setLoading(true);
       
-      const [paymentsRes, tournamentsRes, usersRes] = await Promise.all([
-        api.getPayments({ status: paymentStatus as any, search: paymentSearch }).catch(() => ({ payments: [] })),
-        api.getTournaments().catch(() => ({ tournaments: [] })),
-        api.getUsers(userSearch).catch(() => ({ users: [] })),
+      const fetchOptions = {
+        signal: abortController.signal,
+        headers: { 'Cache-Control': 'no-cache' }
+      };
+
+      const [paymentsRes, tournamentsRes, usersRes] = await Promise.allSettled([
+        api.getPayments({ status: paymentStatus as any, search: paymentSearch }, fetchOptions),
+        api.getTournaments(fetchOptions),
+        api.getUsers(userSearch, fetchOptions),
       ]);
       
-      setPayments(Array.isArray(paymentsRes.payments) ? paymentsRes.payments : []);
-      setTournaments(Array.isArray(tournamentsRes.tournaments) ? tournamentsRes.tournaments : []);
-      setUsers(Array.isArray(usersRes.users) ? usersRes.users : []);
+      if (paymentsRes.status === 'fulfilled') {
+        setPayments(Array.isArray(paymentsRes.value.payments) ? paymentsRes.value.payments : []);
+      } else {
+        console.error('Error fetching payments:', paymentsRes.reason);
+        setPayments([]);
+      }
+      
+      if (tournamentsRes.status === 'fulfilled') {
+        setTournaments(Array.isArray(tournamentsRes.value.tournaments) ? tournamentsRes.value.tournaments : []);
+      } else {
+        console.error('Error fetching tournaments:', tournamentsRes.reason);
+        setTournaments([]);
+      }
+      
+      if (usersRes.status === 'fulfilled') {
+        setUsers(Array.isArray(usersRes.value.users) ? usersRes.value.users : []);
+      } else {
+        console.error('Error fetching users:', usersRes.reason);
+        setUsers([]);
+      }
     } catch (error) {
       console.error('Error fetching admin data:', error);
       toast({
         title: "Error",
-        description: "No se pudieron cargar los datos",
+        description: "Error al cargar datos de administración",
         variant: "destructive"
       });
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  };
+  }, [isAuthenticated, user, paymentStatus, paymentSearch, userSearch, toast]);
 
+  // Estado para controlar la última actualización
+  const [lastUpdate, setLastUpdate] = useState<number>(0);
+  const THROTTLE_TIME = 2000; // 2 segundos entre actualizaciones
+
+  // Effect para autenticación y redireccionamiento
   useEffect(() => {
     if (!isAuthenticated || !user?.isAdmin) {
       window.location.href = '/';
-      return;
     }
-
-    fetchData();
   }, [isAuthenticated, user]);
 
-  // Efecto separado para búsquedas con debounce
+  // Effect unificado para manejo de datos
+  useEffect(() => {
+    const now = Date.now();
+    if (now - lastUpdate < THROTTLE_TIME) {
+      return; // Evitar actualizaciones muy frecuentes
+    }
+
+    // Función para manejar la actualización
+    const handleUpdate = async () => {
+      if (!isAuthenticated || !user?.isAdmin) return;
+      
+      try {
+        setLastUpdate(now);
+        await fetchData(false);
+      } catch (error) {
+        console.error('Error en actualización:', error);
+      }
+    };
+
+    // Configurar debounce para búsquedas
+    const debounceTimer = setTimeout(handleUpdate, 800);
+
+    return () => {
+      clearTimeout(debounceTimer);
+    };
+  }, [paymentStatus, paymentSearch, userSearch, isAuthenticated, user, lastUpdate]);
+
+  // Effect separado para polling con intervalo largo
   useEffect(() => {
     if (!isAuthenticated || !user?.isAdmin) return;
-    
-    const timer = setTimeout(() => {
-      fetchData();
-    }, 500); // Debounce de 500ms
 
-    return () => clearTimeout(timer);
-  }, [paymentStatus, paymentSearch, userSearch]);
+    // Solo hacer polling si no hay búsquedas activas
+    if (paymentSearch || userSearch) return;
+
+    const pollingInterval = setInterval(() => {
+      const now = Date.now();
+      if (now - lastUpdate >= THROTTLE_TIME) {
+        fetchData(true);
+        setLastUpdate(now);
+      }
+    }, 60000); // 1 minuto
+
+    return () => clearInterval(pollingInterval);
+  }, [isAuthenticated, user, paymentSearch, userSearch, lastUpdate]);
 
   const handleVerifyPayment = async (paymentId: number) => {
     try {
@@ -159,9 +232,7 @@ const Admin = () => {
     if (!confirm('¿Estás seguro de que quieres eliminar este torneo?')) return;
     
     try {
-      const result = await api.deleteTournament(id.toString());
-      if (result.error) throw new Error(result.error);
-      
+      await api.deleteTournament(id.toString());
       toast({ 
         title: "Torneo eliminado",
         description: "El torneo se ha eliminado correctamente"
@@ -181,9 +252,7 @@ const Admin = () => {
     if (!confirm('¿Estás seguro de que quieres eliminar este usuario?')) return;
     
     try {
-      const result = await api.deleteUser(id.toString());
-      if (result.error) throw new Error(result.error);
-      
+      await api.deleteUser(id.toString());
       toast({ 
         title: "Usuario eliminado",
         description: "El usuario se ha eliminado correctamente"
@@ -199,13 +268,57 @@ const Admin = () => {
     }
   };
 
+  const handleCreateUser = async (userData: any) => {
+    try {
+      setIsSaving(true);
+      await api.createUser(userData);
+      toast({
+        title: "Usuario creado",
+        description: "El usuario se ha creado correctamente"
+      });
+      setUserDialog(false);
+      fetchData();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al crear usuario",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleUpdateUser = async (id: number, userData: any) => {
+    try {
+      setIsSaving(true);
+      await api.updateUser(id.toString(), userData);
+      toast({
+        title: "Usuario actualizado",
+        description: "El usuario se ha actualizado correctamente"
+      });
+      setEditingUser(null);
+      setUserDialog(false);
+      fetchData();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al actualizar usuario",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Filtered data based on search
   const filteredPayments = useMemo(() => {
     return payments.filter(payment => {
       const matchesSearch = paymentSearch === '' || 
         payment.user.username.toLowerCase().includes(paymentSearch.toLowerCase()) ||
         payment.user.email.toLowerCase().includes(paymentSearch.toLowerCase()) ||
-        payment.tournament.name.toLowerCase().includes(paymentSearch.toLowerCase());
+        payment.tournament.name.toLowerCase().includes(paymentSearch.toLowerCase()) ||
+        payment.txHash.toLowerCase().includes(paymentSearch.toLowerCase());
       
       const matchesStatus = paymentStatus === 'all' || 
         (paymentStatus === 'pending' && !payment.isActive) ||
@@ -217,7 +330,8 @@ const Admin = () => {
 
   const filteredTournaments = useMemo(() => {
     return tournaments.filter(tournament =>
-      tournament.name.toLowerCase().includes(tournamentSearch.toLowerCase())
+      tournament.name.toLowerCase().includes(tournamentSearch.toLowerCase()) ||
+      tournament.description?.toLowerCase().includes(tournamentSearch.toLowerCase())
     );
   }, [tournaments, tournamentSearch]);
 
@@ -256,22 +370,11 @@ const Admin = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-orbitron font-bold mb-2 bg-gradient-to-r from-cyber-green to-neon-blue bg-clip-text text-transparent">
-              Panel de Administración
-            </h1>
-            <p className="text-muted-foreground">Gestiona pagos, torneos y premios</p>
-          </div>
-          <Button 
-            onClick={fetchData} 
-            variant="outline" 
-            disabled={refreshing}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Actualizar
-          </Button>
+        <div className="mb-8">
+          <h1 className="text-4xl font-orbitron font-bold mb-2 bg-gradient-to-r from-cyber-green to-neon-blue bg-clip-text text-transparent">
+            Panel de Administración
+          </h1>
+          <p className="text-muted-foreground">Gestiona pagos, torneos y usuarios</p>
         </div>
 
         <Tabs defaultValue="payments" className="space-y-6">
@@ -289,7 +392,6 @@ const Admin = () => {
                   <div className="flex items-center space-x-2">
                     <DollarSign className="h-5 w-5" />
                     <span>Gestión de Pagos</span>
-                    <Badge variant="outline">{filteredPayments.length}</Badge>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Input
@@ -332,54 +434,51 @@ const Admin = () => {
                       {filteredPayments.map((payment) => (
                         <TableRow key={payment.id}>
                           <TableCell>
-                            <div>
-                              <div className="font-medium">{payment.user.username}</div>
-                              <div className="text-sm text-muted-foreground">{payment.user.email}</div>
-                              <div className="text-xs font-mono">{payment.user.usdtWallet}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell>{payment.tournament.name}</TableCell>
-                          <TableCell className="font-bold">${payment.amount} USDT</TableCell>
-                          <TableCell>
-                            <code className="text-xs bg-muted px-2 py-1 rounded">
-                              {payment.txHash.substring(0, 20)}...
-                            </code>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={payment.isActive ? "default" : "secondary"}>
-                              {payment.isActive ? "Verificado" : "Pendiente"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{new Date(payment.createdAt).toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            {!payment.isActive && (
-                              <Button
-                                size="sm"
-                                onClick={() => handleVerifyPayment(payment.id)}
-                                className="bg-cyber-green hover:bg-cyber-green/80"
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Verificar
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+        <div>
+          <div className="font-medium">{payment.user.username}</div>
+          <div className="text-sm text-muted-foreground">{payment.user.email}</div>
+          <div className="text-xs font-mono">{payment.user.usdtWallet}</div>
+        </div>
+      </TableCell>
+      <TableCell>{payment.tournament.name}</TableCell>
+      <TableCell className="font-bold">${payment.amount} USDT</TableCell>
+      <TableCell>
+        <code className="text-xs bg-muted px-2 py-1 rounded">
+          {payment.txHash.substring(0, 34)}...
+        </code>
+      </TableCell>
+      <TableCell>
+        <Badge variant={payment.isActive ? "default" : "secondary"}>
+          {payment.isActive ? "Verificado" : "Pendiente"}
+        </Badge>
+      </TableCell>
+      <TableCell>{new Date(payment.createdAt).toLocaleDateString()}</TableCell>
+      <TableCell>
+        {!payment.isActive && (
+          <Button
+            size="sm"
+            onClick={() => handleVerifyPayment(payment.id)}
+            className="bg-cyber-green hover:bg-cyber-green/80"
+          >
+            Verificar
+          </Button>
+        )}
+      </TableCell>
+    </TableRow>
+  ))}
                     </TableBody>
                   </Table>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
-
-          <TabsContent value="tournaments" className="space-y-6">
+           <TabsContent value="tournaments" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Users className="h-5 w-5" />
+                    <Trophy className="h-5 w-5" />
                     <span>Gestión de Torneos</span>
-                    <Badge variant="outline">{filteredTournaments.length}</Badge>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Input
@@ -395,7 +494,7 @@ const Admin = () => {
                           Crear Torneo
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent className="max-w-2xl">
                         <DialogHeader>
                           <DialogTitle>
                             {editingTournament ? 'Editar Torneo' : 'Crear Torneo'}
@@ -405,6 +504,7 @@ const Admin = () => {
                           tournament={editingTournament}
                           onSave={() => {
                             setTournamentDialog(false);
+                            setEditingTournament(null);
                             fetchData();
                           }}
                         />
@@ -422,10 +522,14 @@ const Admin = () => {
                   <div className="grid gap-4">
                     {filteredTournaments.map((tournament) => (
                       <div key={tournament.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <h3 className="font-orbitron font-bold">{tournament.name}</h3>
-                          <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                        <div className="flex-1">
+                          <h3 className="font-orbitron font-bold text-lg">{tournament.name}</h3>
+                          {tournament.description && (
+                            <p className="text-sm text-muted-foreground mt-1">{tournament.description}</p>
+                          )}
+                          <div className="flex items-center space-x-4 text-sm text-muted-foreground mt-2">
                             <Badge variant="outline">{tournament.frontendState}</Badge>
+                            <span>Jugadores: {tournament.participantCount}{tournament.maxPlayers && `/${tournament.maxPlayers}`}</span>
                             <span>Recaudado: ${tournament.currentAmount} USDT</span>
                             {tournament.maxAmount && (
                               <span>Meta: ${tournament.maxAmount} USDT</span>
@@ -433,7 +537,7 @@ const Admin = () => {
                             <span>Premio: {tournament.prizePercentage}%</span>
                           </div>
                         </div>
-                        <div className="space-x-2">
+                        <div className="flex items-center space-x-2">
                           <Button
                             variant="outline"
                             size="sm"
@@ -453,8 +557,9 @@ const Admin = () => {
                           </Button>
                           {tournament.frontendState === "Finalizado" && (
                             <Button
-                              variant="outline"
+                              variant="default"
                               onClick={() => handleDistributePrizes(tournament.id)}
+                              className="bg-cyber-green hover:bg-cyber-green/80"
                             >
                               <Trophy className="h-4 w-4 mr-1" />
                               Distribuir Premios
@@ -476,14 +581,71 @@ const Admin = () => {
                   <div className="flex items-center space-x-2">
                     <Users className="h-5 w-5" />
                     <span>Gestión de Usuarios</span>
-                    <Badge variant="outline">{filteredUsers.length}</Badge>
                   </div>
-                  <Input
-                    placeholder="Buscar usuarios..."
-                    value={userSearch}
-                    onChange={(e) => setUserSearch(e.target.value)}
-                    className="w-64"
-                  />
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      placeholder="Buscar usuarios..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="w-64"
+                    />
+                    {/* // Diálogo de usuario */}
+                    <Dialog open={userDialog} onOpenChange={(open) => {
+                      setUserDialog(open);
+                      if (!open) setEditingUser(null);
+                    }}>
+                      <DialogTrigger asChild>
+                        <Button onClick={() => setEditingUser(null)}>
+                          <UserPlus className="h-4 w-4 mr-1" />
+                          Crear Usuario
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                          <DialogTitle>
+                            {editingUser ? 'Editar Usuario' : 'Crear Usuario'}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <UserForm
+                          user={editingUser}
+                          onSave={async (userData) => {
+                            try {
+                              setIsSaving(true);
+                              if (editingUser) {
+                                await api.updateUser(editingUser.id.toString(), userData);
+                                toast({
+                                  title: "Usuario actualizado",
+                                  description: "El usuario se ha actualizado correctamente"
+                                });
+                              } else {
+                                await api.createUser(userData);
+                                toast({
+                                  title: "Usuario creado",
+                                  description: "El usuario se ha creado correctamente"
+                                });
+                              }
+                              setUserDialog(false);
+                              setEditingUser(null);
+                              fetchData();
+                            } catch (error) {
+                              toast({
+                                title: "Error",
+                                description: error instanceof Error ? error.message : "Error al procesar usuario",
+                                variant: "destructive"
+                              });
+                            } finally {
+                              setIsSaving(false);
+                            }
+                          }}
+                          onCancel={() => {
+                            setUserDialog(false);
+                            setEditingUser(null);
+                          }}
+                          isSaving={isSaving}
+                        />
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -511,7 +673,7 @@ const Admin = () => {
                           <TableCell>{user.email}</TableCell>
                           <TableCell className="font-mono text-xs">{user.usdtWallet}</TableCell>
                           <TableCell>
-                            <div className="text-sm">
+                            <div className="text-sm space-y-1">
                               <div>Jugados: {user.gamesPlayed}</div>
                               <div>Ganados: {user.gamesWon}</div>
                             </div>
@@ -521,13 +683,23 @@ const Admin = () => {
                               {user.isAdmin ? "Admin" : "User"}
                             </Badge>
                           </TableCell>
-                          <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div>{new Date(user.createdAt).toLocaleDateString()}</div>
+                              <div className="text-muted-foreground">
+                                {new Date(user.updatedAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <div className="space-x-2">
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setEditingUser(user)}
+                                onClick={() => {
+                                  setEditingUser(user);
+                                  setUserDialog(true);
+                                }}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -595,23 +767,6 @@ const Admin = () => {
             </Card>
           </TabsContent>
         </Tabs>
-
-        {editingUser && (
-          <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Editar Usuario</DialogTitle>
-              </DialogHeader>
-              <UserForm
-                user={editingUser}
-                onSave={() => {
-                  setEditingUser(null);
-                  fetchData();
-                }}
-              />
-            </DialogContent>
-          </Dialog>
-        )}
       </div>
     </div>
   );
