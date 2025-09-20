@@ -1,5 +1,8 @@
+import Header from "@/components/Header";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Eye, EyeOff } from "lucide-react";
+import TournamentDetails from "@/components/TournamentDetails";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -68,24 +71,57 @@ const Admin = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Search states
   const [paymentSearch, setPaymentSearch] = useState('');
   const [tournamentSearch, setTournamentSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('pending');
-  
+
   // Dialog states
   const [tournamentDialog, setTournamentDialog] = useState(false);
   const [userDialog, setUserDialog] = useState(false);
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Tournament details modal
+  const [detailsTournamentId, setDetailsTournamentId] = useState<number | null>(null);
+  // Switch global para ocultar torneos finalizados
+  const [hideFinalized, setHideFinalized] = useState(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('hideFinalizedTournaments') : null;
+    return stored === null ? true : stored === 'true';
+  });
+  // Estado global de IDs de torneos finalizados ocultos (persistente en DB)
+  const [hiddenFinalizedIds, setHiddenFinalizedIds] = useState<number[]>([]);
 
+  // Cargar lista global al montar
+  useEffect(() => {
+    api.getHiddenFinalizedTournaments().then(res => {
+      setHiddenFinalizedIds(res.hidden || []);
+    });
+  }, []);
+
+  // Ocultar/desocultar individual (persistente en DB)
+  const handleToggleHideFinalized = async (id: number) => {
+    const isHidden = hiddenFinalizedIds.includes(id);
+    await api.setHiddenFinalizedTournament(id, !isHidden);
+    // Refrescar lista
+    const res = await api.getHiddenFinalizedTournaments();
+    setHiddenFinalizedIds(res.hidden || []);
+  };
+
+  // Ocultar/desocultar todos los finalizados (persistente en DB)
+  const handleHideFinalizedChange = async (checked: boolean) => {
+    setHideFinalized(checked);
+    await api.setHideAllFinalized(checked);
+    // Refrescar lista
+    const res = await api.getHiddenFinalizedTournaments();
+    setHiddenFinalizedIds(res.hidden || []);
+  };
   // Usar useCallback para memoizar fetchData
   const fetchData = useCallback(async (isPolling = false) => {
     if (!isAuthenticated || !user?.isAdmin) return;
-    
+
     // Si es una llamada de polling y hay una búsqueda activa, no hacer la llamada
     if (isPolling && (paymentSearch || userSearch)) return;
 
@@ -94,32 +130,32 @@ const Admin = () => {
 
     try {
       if (!isPolling) setLoading(true);
-      
+
       const fetchOptions = {
         signal: abortController.signal,
         headers: { 'Cache-Control': 'no-cache' }
       };
 
       const [paymentsRes, tournamentsRes, usersRes] = await Promise.allSettled([
-        api.getPayments({ status: paymentStatus as any, search: paymentSearch }, fetchOptions),
-        api.getTournaments(fetchOptions),
+        api.getPayments({ status: paymentStatus as any, search: paymentSearch }),
+        api.getTournaments({}, false), // ← CORRECCIÓN: Añadido {}, false
         api.getUsers(userSearch, fetchOptions),
       ]);
-      
+
       if (paymentsRes.status === 'fulfilled') {
         setPayments(Array.isArray(paymentsRes.value.payments) ? paymentsRes.value.payments : []);
       } else {
         console.error('Error fetching payments:', paymentsRes.reason);
         setPayments([]);
       }
-      
+
       if (tournamentsRes.status === 'fulfilled') {
         setTournaments(Array.isArray(tournamentsRes.value.tournaments) ? tournamentsRes.value.tournaments : []);
       } else {
         console.error('Error fetching tournaments:', tournamentsRes.reason);
         setTournaments([]);
       }
-      
+
       if (usersRes.status === 'fulfilled') {
         setUsers(Array.isArray(usersRes.value.users) ? usersRes.value.users : []);
       } else {
@@ -159,7 +195,7 @@ const Admin = () => {
     // Función para manejar la actualización
     const handleUpdate = async () => {
       if (!isAuthenticated || !user?.isAdmin) return;
-      
+
       try {
         setLastUpdate(now);
         await fetchData(false);
@@ -174,7 +210,7 @@ const Admin = () => {
     return () => {
       clearTimeout(debounceTimer);
     };
-  }, [paymentStatus, paymentSearch, userSearch, isAuthenticated, user, lastUpdate]);
+  }, [paymentStatus, paymentSearch, userSearch, isAuthenticated, user, lastUpdate, fetchData]);
 
   // Effect separado para polling con intervalo largo
   useEffect(() => {
@@ -192,7 +228,7 @@ const Admin = () => {
     }, 60000); // 1 minuto
 
     return () => clearInterval(pollingInterval);
-  }, [isAuthenticated, user, paymentSearch, userSearch, lastUpdate]);
+  }, [isAuthenticated, user, paymentSearch, userSearch, lastUpdate, fetchData]);
 
   const handleVerifyPayment = async (paymentId: number) => {
     try {
@@ -230,10 +266,10 @@ const Admin = () => {
 
   const handleDeleteTournament = async (id: number) => {
     if (!confirm('¿Estás seguro de que quieres eliminar este torneo?')) return;
-    
+
     try {
       await api.deleteTournament(id.toString());
-      toast({ 
+      toast({
         title: "Torneo eliminado",
         description: "El torneo se ha eliminado correctamente"
       });
@@ -250,10 +286,10 @@ const Admin = () => {
 
   const handleDeleteUser = async (id: number) => {
     if (!confirm('¿Estás seguro de que quieres eliminar este usuario?')) return;
-    
+
     try {
       await api.deleteUser(id.toString());
-      toast({ 
+      toast({
         title: "Usuario eliminado",
         description: "El usuario se ha eliminado correctamente"
       });
@@ -261,7 +297,7 @@ const Admin = () => {
     } catch (error) {
       console.error('Delete user error:', error);
       toast({
-        title: "Error", 
+        title: "Error",
         description: error instanceof Error ? error.message : "Error al eliminar usuario",
         variant: "destructive"
       });
@@ -314,25 +350,30 @@ const Admin = () => {
   // Filtered data based on search
   const filteredPayments = useMemo(() => {
     return payments.filter(payment => {
-      const matchesSearch = paymentSearch === '' || 
+      const matchesSearch = paymentSearch === '' ||
         payment.user.username.toLowerCase().includes(paymentSearch.toLowerCase()) ||
         payment.user.email.toLowerCase().includes(paymentSearch.toLowerCase()) ||
         payment.tournament.name.toLowerCase().includes(paymentSearch.toLowerCase()) ||
         payment.txHash.toLowerCase().includes(paymentSearch.toLowerCase());
-      
-      const matchesStatus = paymentStatus === 'all' || 
+
+      const matchesStatus = paymentStatus === 'all' ||
         (paymentStatus === 'pending' && !payment.isActive) ||
         (paymentStatus === 'verified' && payment.isActive);
-      
+
       return matchesSearch && matchesStatus;
     });
   }, [payments, paymentSearch, paymentStatus]);
 
+  // Mostrar todos los torneos siempre en el panel admin, incluso si hiddenFinalized=true
+  // El icono de ojo solo es un indicador visual, nunca oculta el torneo aquí
   const filteredTournaments = useMemo(() => {
-    return tournaments.filter(tournament =>
-      tournament.name.toLowerCase().includes(tournamentSearch.toLowerCase()) ||
-      tournament.description?.toLowerCase().includes(tournamentSearch.toLowerCase())
-    );
+    return tournaments.filter(tournament => {
+      if (!tournamentSearch) return true;
+      return (
+        tournament.name.toLowerCase().includes(tournamentSearch.toLowerCase()) ||
+        (tournament.description || '').toLowerCase().includes(tournamentSearch.toLowerCase())
+      );
+    });
   }, [tournaments, tournamentSearch]);
 
   const filteredUsers = useMemo(() => {
@@ -369,7 +410,8 @@ const Admin = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
+       <Header />
+      <div className="container mx-auto px-4 py-8 mt-16">
         <div className="mb-8">
           <h1 className="text-4xl font-orbitron font-bold mb-2 bg-gradient-to-r from-cyber-green to-neon-blue bg-clip-text text-transparent">
             Panel de Administración
@@ -381,7 +423,7 @@ const Admin = () => {
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="payments">Pagos</TabsTrigger>
             <TabsTrigger value="tournaments">Torneos</TabsTrigger>
-            <TabsTrigger value="users">Usuarios</TabsTrigger>  
+            <TabsTrigger value="users">Usuarios</TabsTrigger>
             <TabsTrigger value="prizes">Premios</TabsTrigger>
           </TabsList>
 
@@ -434,45 +476,49 @@ const Admin = () => {
                       {filteredPayments.map((payment) => (
                         <TableRow key={payment.id}>
                           <TableCell>
-        <div>
-          <div className="font-medium">{payment.user.username}</div>
-          <div className="text-sm text-muted-foreground">{payment.user.email}</div>
-          <div className="text-xs font-mono">{payment.user.usdtWallet}</div>
-        </div>
-      </TableCell>
-      <TableCell>{payment.tournament.name}</TableCell>
-      <TableCell className="font-bold">${payment.amount} USDT</TableCell>
-      <TableCell>
-        <code className="text-xs bg-muted px-2 py-1 rounded">
-          {payment.txHash.substring(0, 34)}...
-        </code>
-      </TableCell>
-      <TableCell>
-        <Badge variant={payment.isActive ? "default" : "secondary"}>
-          {payment.isActive ? "Verificado" : "Pendiente"}
-        </Badge>
-      </TableCell>
-      <TableCell>{new Date(payment.createdAt).toLocaleDateString()}</TableCell>
-      <TableCell>
-        {!payment.isActive && (
-          <Button
-            size="sm"
-            onClick={() => handleVerifyPayment(payment.id)}
-            className="bg-cyber-green hover:bg-cyber-green/80"
-          >
-            Verificar
-          </Button>
-        )}
-      </TableCell>
-    </TableRow>
-  ))}
+                            <div>
+                              <div className="font-medium">{payment.user.username}</div>
+                              <div className="text-sm text-muted-foreground">{payment.user.email}</div>
+                              <div className="text-xs font-mono">{payment.user.usdtWallet}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{payment.tournament.name}</TableCell>
+                          <TableCell className="font-bold">${payment.amount} USDT</TableCell>
+                          <TableCell>
+                            <code className="text-xs bg-muted px-2 py-1 rounded">
+                              {payment.txHash.substring(0, 34)}...
+                            </code>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={payment.isActive ? "default" : "secondary"}>
+                              {payment.isActive ? "Verificado" : "Pendiente"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{new Date(payment.createdAt).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            {!payment.isActive && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleVerifyPayment(payment.id)}
+                                className="bg-cyber-green hover:bg-cyber-green/80"
+                              >
+                                Verificar
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
-           <TabsContent value="tournaments" className="space-y-6">
+          <TabsContent value="tournaments" className="space-y-6">
+            <div className="flex items-center justify-end mb-4">
+              <span className="mr-2 text-sm">Ocultar finalizados</span>
+              <Switch checked={hideFinalized} onCheckedChange={handleHideFinalizedChange} />
+            </div>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -520,55 +566,75 @@ const Admin = () => {
                   </div>
                 ) : (
                   <div className="grid gap-4">
-                    {filteredTournaments.map((tournament) => (
-                      <div key={tournament.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex-1">
-                          <h3 className="font-orbitron font-bold text-lg">{tournament.name}</h3>
-                          {tournament.description && (
-                            <p className="text-sm text-muted-foreground mt-1">{tournament.description}</p>
-                          )}
-                          <div className="flex items-center space-x-4 text-sm text-muted-foreground mt-2">
-                            <Badge variant="outline">{tournament.frontendState}</Badge>
-                            <span>Jugadores: {tournament.participantCount}{tournament.maxPlayers && `/${tournament.maxPlayers}`}</span>
-                            <span>Recaudado: ${tournament.currentAmount} USDT</span>
-                            {tournament.maxAmount && (
-                              <span>Meta: ${tournament.maxAmount} USDT</span>
+                    {filteredTournaments
+                      .map((tournament) => (
+                        <div key={tournament.id} className="flex items-center justify-between p-4 border rounded-lg relative">
+                          <div className="flex-1">
+                            <h3 className="font-orbitron font-bold text-lg">{tournament.name}</h3>
+                            {tournament.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{tournament.description}</p>
                             )}
-                            <span>Premio: {tournament.prizePercentage}%</span>
+                            <div className="flex items-center space-x-4 text-sm text-muted-foreground mt-2">
+                              <Badge variant="outline">{tournament.frontendState}</Badge>
+                              <span>Jugadores: {tournament.participantCount}{tournament.maxPlayers && `/${tournament.maxPlayers}`}</span>
+                              <span>Recaudado: ${tournament.currentAmount} USDT</span>
+                              {tournament.maxAmount && (
+                                <span>Meta: ${tournament.maxAmount} USDT</span>
+                              )}
+                              <span>Premio: {tournament.prizePercentage}%</span>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setEditingTournament(tournament);
-                              setTournamentDialog(true);
-                            }}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteTournament(tournament.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                          {tournament.frontendState === "Finalizado" && (
+                          <div className="flex items-center space-x-2">
                             <Button
-                              variant="default"
-                              onClick={() => handleDistributePrizes(tournament.id)}
-                              className="bg-cyber-green hover:bg-cyber-green/80"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditingTournament(tournament);
+                                setTournamentDialog(true);
+                              }}
                             >
-                              <Trophy className="h-4 w-4 mr-1" />
-                              Distribuir Premios
+                              <Edit className="h-4 w-4" />
                             </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteTournament(tournament.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDetailsTournamentId(tournament.id)}
+                            >
+                              <Users className="h-4 w-4 mr-1" />
+                              Ver Detalles
+                            </Button>
+                          </div>
+                          {/* Icono de ocultar/desocultar individual solo para finalizados, pero nunca oculta el torneo del admin */}
+                          {tournament.frontendState === 'Finalizado' && (
+                            <button
+                              type="button"
+                              title={hiddenFinalizedIds.includes(tournament.id) ? 'Mostrar torneo en público' : 'Ocultar torneo en público'}
+                              onClick={() => handleToggleHideFinalized(tournament.id)}
+                              className="absolute top-2 right-2 z-50 bg-card/80 rounded-full p-2 border border-border hover:bg-muted transition"
+                            >
+                              {hiddenFinalizedIds.includes(tournament.id) ? (
+                                <EyeOff className="w-5 h-5 text-cyber-gold" />
+                              ) : (
+                                <Eye className="w-5 h-5 text-cyber-gold" />
+                              )}
+                            </button>
                           )}
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
+                )}
+                {detailsTournamentId !== null && (
+                  <TournamentDetails
+                    tournamentId={detailsTournamentId}
+                    onClose={() => setDetailsTournamentId(null)}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -753,7 +819,7 @@ const Admin = () => {
                       <div className="text-sm text-muted-foreground">5%</div>
                     </div>
                   </div>
-                  
+
                   <div className="text-center p-4 bg-muted/10 rounded-lg">
                     <div className="text-lg font-bold">6° - 10°</div>
                     <div className="text-sm text-muted-foreground">5% cada uno</div>
@@ -763,7 +829,7 @@ const Admin = () => {
                     Los porcentajes se calculan sobre el <strong>maxAmount × prizePercentage</strong> del torneo
                   </div>
                 </div>
-              </CardContent>
+                </CardContent>
             </Card>
           </TabsContent>
         </Tabs>

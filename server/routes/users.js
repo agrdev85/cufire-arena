@@ -8,6 +8,13 @@ const prisma = new PrismaClient();
 // GET - Get user profile
 router.get('/:username', async (req, res) => {
   try {
+    // Evitar múltiples solicitudes simultáneas para el mismo usuario
+    const cacheKey = `user_profile_${req.params.username}`;
+    if (global.requestCache && global.requestCache[cacheKey]) {
+      return res.json(global.requestCache[cacheKey]);
+    }
+
+    console.log('Buscando usuario:', req.params.username);
     const user = await prisma.user.findUnique({
       where: { username: req.params.username },
       select: {
@@ -20,14 +27,13 @@ router.get('/:username', async (req, res) => {
         gamesWon: true,
         createdAt: true,
         updatedAt: true,
-        participations: {
+        tournaments: {
           include: {
             tournament: {
               select: { 
                 id: true,
-                name: true, 
-                status: true,
-                frontendState: true
+                name: true,
+                isActive: true
               }
             }
           }
@@ -167,11 +173,27 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-// PUT - Update user profile (current user)
+// PUT - Update user profile (current user) - MODIFICADO para verificar torneos activos
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
     const { username, usdtWallet } = req.body;
     const userId = req.user.id;
+
+    // Verificar si el usuario tiene torneos activos
+    const activeRegistrations = await prisma.tournamentRegistration.findFirst({
+      where: {
+        userId: userId,
+        tournament: {
+          isActive: true
+        }
+      }
+    });
+
+    if (activeRegistrations) {
+      return res.status(403).json({ 
+        error: 'No puedes modificar tu perfil mientras tengas torneos activos' 
+      });
+    }
 
     if (!username && !usdtWallet) {
       return res.status(400).json({ error: 'Al menos un campo es requerido para actualizar' });
@@ -197,6 +219,31 @@ router.put('/profile', authMiddleware, async (req, res) => {
       }
     }
 
+     // Verificar si el usuario tiene scores registrados
+    const userScores = await prisma.score.findFirst({
+      where: { userId: userId }
+    });
+
+    if (userScores) {
+      return res.status(403).json({ 
+        error: 'No puedes modificar tu perfil mientras tengas puntuaciones registradas' 
+      });
+    }
+
+    // Verificar si el usuario tiene pagos pendientes
+    const userPayments = await prisma.payment.findFirst({
+      where: { 
+        userId: userId,
+        isActive: true 
+      }
+    });
+
+    if (userPayments) {
+      return res.status(403).json({ 
+        error: 'No puedes modificar tu perfil mientras tengas pagos pendientes' 
+      });
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: updateData,
@@ -207,9 +254,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
         usdtWallet: true,
         isAdmin: true,
         gamesPlayed: true,
-        gamesWon: true,
-        totalScore: true,
-        tournamentsWon: true
+        gamesWon: true
       }
     });
 
@@ -220,6 +265,78 @@ router.put('/profile', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Error al actualizar perfil' });
+  }
+});
+
+// DELETE - Delete user (current user only) - NUEVO ENDPOINT
+router.delete('/profile/delete', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Verificar si el usuario tiene registros en torneos activos
+    const activeRegistrations = await prisma.tournamentRegistration.findFirst({
+      where: {
+        userId: userId,
+        tournament: {
+          isActive: true
+        }
+      }
+    });
+
+    if (activeRegistrations) {
+      return res.status(403).json({ 
+        error: 'No puedes eliminar tu cuenta mientras tengas torneos activos' 
+      });
+    }
+
+    // Verificar si el usuario tiene scores registrados
+    const userScores = await prisma.score.findFirst({
+      where: { userId: userId }
+    });
+
+    if (userScores) {
+      return res.status(403).json({ 
+        error: 'No puedes eliminar tu cuenta mientras tengas puntuaciones registradas' 
+      });
+    }
+
+    // Verificar si el usuario tiene pagos pendientes
+    const userPayments = await prisma.payment.findFirst({
+      where: { 
+        userId: userId,
+        isActive: true 
+      }
+    });
+
+    if (userPayments) {
+      return res.status(403).json({ 
+        error: 'No puedes eliminar tu cuenta mientras tengas pagos pendientes' 
+      });
+    }
+
+    // Primero eliminamos registros relacionados para evitar errores de foreign key
+    await prisma.$transaction([
+      /* prisma.tournamentRegistration.deleteMany({
+        where: { userId }
+      }),
+      prisma.payment.deleteMany({
+        where: { userId }
+      }),
+      prisma.score.deleteMany({
+        where: { userId }
+      }), */
+      prisma.user.delete({
+        where: { id: userId }
+      })
+    ]);
+
+    res.json({ message: 'Cuenta eliminada exitosamente' });
+  } catch (error) {
+    console.error('Delete user profile error:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    res.status(500).json({ error: 'Error al eliminar cuenta' });
   }
 });
 
@@ -297,6 +414,26 @@ router.put('/:id', authMiddleware, async (req, res) => {
 // DELETE - Delete user (admin only)
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
+    // Verificar si el usuario tiene permisos para eliminar
+    if (!req.user.isAdmin && req.user.id !== parseInt(req.params.id)) {
+      return res.status(403).json({ error: 'No tienes permiso para eliminar esta cuenta' });
+    }
+
+    // Verificar si el usuario tiene torneos activos
+    const activeRegistrations = await prisma.tournamentRegistration.findFirst({
+      where: {
+        userId: parseInt(req.params.id),
+        tournament: {
+          isActive: true
+        }
+      }
+    });
+
+    if (activeRegistrations) {
+      return res.status(403).json({ 
+        error: 'No puedes eliminar la cuenta mientras tengas torneos activos' 
+      });
+    }
     if (!req.user.isAdmin) {
       return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
     }
@@ -309,15 +446,15 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     // Primero eliminamos registros relacionados para evitar errores de foreign key
     await prisma.$transaction([
-      prisma.tournamentRegistration.deleteMany({
+      /*prisma.tournamentRegistration.deleteMany({
         where: { userId }
       }),
       prisma.payment.deleteMany({
         where: { userId }
       }),
-      prisma.score.deleteMany({
+      /* prisma.score.deleteMany({
         where: { userId }
-      }),
+      }), */
       prisma.user.delete({
         where: { id: userId }
       })

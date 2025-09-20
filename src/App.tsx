@@ -9,7 +9,7 @@ import Leaderboard from '@/components/Leaderboard';
 import Prizes from '@/components/Prizes';
 import { AuthModal } from '@/components/AuthModal';
 import AdminPanel from '@/pages/AdminPanel';
-import ProfilePanel from './components/ProfilePanel';
+import ProfilePanel from '@/components/ProfilePanel';
 
 function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -41,5 +41,4 @@ function App() {
     </Router>
   );
 }
-
 export default App;

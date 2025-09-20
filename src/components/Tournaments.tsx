@@ -1,17 +1,19 @@
 import TournamentCard from "./TournamentCard";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { Eye, EyeOff } from "lucide-react";
 
 interface TournamentDTO {
   id: number;
   name: string;
   maxAmount?: number;
   currentAmount: number;
+  potentialAmount?: number; // Añadir este campo
   registrationFee: number;
   participantCount: number;
   maxPlayers?: number;
   startDate?: string | null;
-  frontendState: "Open" | "En curso" | "Finalizado";
+  frontendState: "Open" | "En curso" | "Finalizado" | "Completo"; // Actualizar para incluir "Completo"
   countdownRemaining?: number | null;
   prizePercentage?: number;
   duration?: number;
@@ -20,25 +22,94 @@ interface TournamentDTO {
 const Tournaments = () => {
   const [tournaments, setTournaments] = useState<TournamentDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hideFinalized, setHideFinalized] = useState(true);
+  const [hiddenFinalizedIds, setHiddenFinalizedIds] = useState<number[]>([]);
+
+  // Cargar estado global de ocultar finalizados y lista de IDs ocultos
+  useEffect(() => {
+    const loadGlobalState = async () => {
+      // Cargar IDs ocultos desde backend primero
+      const res = await api.getHiddenFinalizedTournaments();
+      setHiddenFinalizedIds(res.hidden || []);
+      
+      // Luego cargar switch global
+      const stored = typeof window !== 'undefined' ? localStorage.getItem('hideFinalizedTournaments') : null;
+      setHideFinalized(stored === null ? true : stored === 'true');
+    };
+
+    // Cargar estado inicial
+    loadGlobalState();
+
+    // Función de sincronización para actualizaciones
+    const sync = async () => {
+      try {
+        const res = await api.getHiddenFinalizedTournaments();
+        setHiddenFinalizedIds(res.hidden || []);
+        const stored = localStorage.getItem('hideFinalizedTournaments');
+        setHideFinalized(stored === null ? true : stored === 'true');
+      } catch (error) {
+        console.error('Error syncing hidden tournaments:', error);
+      }
+    };
+
+    // Configurar event listeners
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'hideFinalizedTournaments' || e.key === 'hiddenFinalizedTournamentsUpdated') {
+        sync();
+      }
+    };
+
+    // Escuchar eventos de cambios
+    window.addEventListener('hideFinalizedTournamentsChanged', sync);
+    window.addEventListener('hiddenFinalizedTournamentsUpdated', sync);
+    window.addEventListener('storage', handleStorageChange);
+
+    // Polling cada 30 segundos para mantener sincronización
+    const pollInterval = setInterval(sync, 30000);
+
+    return () => {
+      window.removeEventListener('hideFinalizedTournamentsChanged', sync);
+      window.removeEventListener('hiddenFinalizedTournamentsUpdated', sync);
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(pollInterval);
+    };
+  }, []);
+
+  useEffect(() => {
+    const sync = () => {
+      const stored = localStorage.getItem('hideFinalizedTournaments');
+      setHideFinalized(stored === null ? true : stored === 'true');
+    };
+    window.addEventListener('hideFinalizedTournamentsChanged', sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener('hideFinalizedTournamentsChanged', sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        const response = await api.getTournaments();
-        const list: TournamentDTO[] = (response.tournaments || []).map((t: any) => ({
-          id: t.id,
-          name: t.name,
-          maxAmount: t.maxAmount ?? undefined,
-          currentAmount: t.currentAmount || 0,
-          registrationFee: t.registrationFee,
-          participantCount: t.participantCount || 0,
-          maxPlayers: t.maxPlayers ?? undefined,
-          startDate: t.startDate ? String(t.startDate) : null,
-          frontendState: t.frontendState,
-          countdownRemaining: t.countdownRemaining ?? null,
-          prizePercentage: t.prizePercentage ?? 0,
-          duration: t.duration ?? 90,
-        }));
+        // Pasar hideFinalized como parámetro para filtrado en backend
+        const response = await api.getTournaments({}, hideFinalized);
+        const list: TournamentDTO[] = (response.tournaments || []).map((t: any) => {
+          return {
+            id: t.id,
+            name: t.name,
+            maxAmount: t.maxAmount ?? undefined,
+            currentAmount: t.currentAmount || 0,
+            potentialAmount: t.potentialAmount ?? undefined, // Añadir este campo
+            registrationFee: t.registrationFee,
+            participantCount: t.participantCount || 0,
+            maxPlayers: t.maxPlayers ?? undefined,
+            startDate: t.startDate ? String(t.startDate) : null,
+            frontendState: t.frontendState,
+            countdownRemaining: t.countdownRemaining ?? null,
+            prizePercentage: t.prizePercentage ?? 0,
+            duration: t.duration ?? 90,
+          };
+        });
         setTournaments(list);
       } catch (error) {
         console.error('Failed to fetch tournaments:', error);
@@ -46,12 +117,22 @@ const Tournaments = () => {
         setLoading(false);
       }
     };
-
     fetchTournaments();
-    // Refresh every 10 seconds for real-time updates
-    const interval = setInterval(fetchTournaments, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    const interval = setInterval(fetchTournaments, 30000);
+
+    // Escuchar eventos de cambios en la visibilidad
+    const handleVisibilityChange = () => {
+      fetchTournaments();
+    };
+    window.addEventListener('hideFinalizedTournamentsChanged', handleVisibilityChange);
+    window.addEventListener('hiddenFinalizedTournamentsUpdated', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('hideFinalizedTournamentsChanged', handleVisibilityChange);
+      window.removeEventListener('hiddenFinalizedTournamentsUpdated', handleVisibilityChange);
+    };
+  }, [hideFinalized]); // Agregamos hideFinalized como dependencia
 
   if (loading) {
     return (
@@ -85,22 +166,25 @@ const Tournaments = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {tournaments.map((t) => (
-            <TournamentCard
-              key={t.id}
-              id={t.id}
-              name={t.name}
-              maxAmount={t.maxAmount}
-              currentAmount={t.currentAmount}
-              registrationFee={t.registrationFee}
-              participantCount={t.participantCount}
-              maxPlayers={t.maxPlayers}
-              startDate={t.startDate || undefined}
-              frontendState={t.frontendState}
-              countdownRemaining={t.countdownRemaining || undefined}
-              prizePercentage={t.prizePercentage}
-              duration={t.duration}
-            />
-          ))}
+              <div key={t.id} className="relative group">
+                <TournamentCard
+                  id={t.id}
+                  name={t.name}
+                  maxAmount={t.maxAmount}
+                  currentAmount={t.currentAmount}
+                  potentialAmount={t.potentialAmount} // Pasar este campo
+                  registrationFee={t.registrationFee}
+                  participantCount={t.participantCount}
+                  maxPlayers={t.maxPlayers}
+                  startDate={t.startDate || undefined}
+                  frontendState={t.frontendState}
+                  countdownRemaining={t.countdownRemaining || undefined}
+                  prizePercentage={t.prizePercentage}
+                  duration={t.duration}
+                />
+                {/* El icono de ocultar solo se controla desde el admin, aquí no se muestra */}
+              </div>
+            ))}
         </div>
 
         <div className="mt-12 text-center">

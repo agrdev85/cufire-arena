@@ -7,7 +7,32 @@ interface AuthResponse {
   user: any;
 }
 
+interface ApiError extends Error {
+  status?: number;
+  data?: any;
+}
+
 class ApiClient {
+    // Torneos finalizados ocultos (global, persistente en DB)
+    async getHiddenFinalizedTournaments() {
+      return this.request('/tournaments/hidden-finalized');
+    }
+
+    // Ocultar/desocultar todos los finalizados
+    async setHideAllFinalized(hidden: boolean) {
+      return this.request('/tournaments/hidden-finalized', {
+        method: 'POST',
+        body: JSON.stringify({ hideAll: true, hidden })
+      });
+    }
+
+    // Ocultar/desocultar individual
+    async setHiddenFinalizedTournament(id: number, hidden: boolean) {
+      return this.request('/tournaments/hidden-finalized', {
+        method: 'POST',
+        body: JSON.stringify({ id, hidden })
+      });
+    }
     private lastRequest: number = 0;
     private minRequestInterval: number = 1000; // 1 segundo entre solicitudes
     private maxRetries: number = 3;
@@ -66,14 +91,17 @@ class ApiClient {
           console.error('Error parsing response:', parseError);
         }
 
-        // Retry on certain status codes
-        if (retryCount < this.maxRetries && (response.status === 429 || response.status >= 500)) {
-          console.warn(`Request failed with ${response.status}, retrying... (attempt ${retryCount + 1}/${this.maxRetries})`);
-          await this.sleep(Math.pow(2, retryCount) * 1000); // Exponential backoff
+        // Solo reintentar para errores de servidor, no para errores de cliente (400s)
+        if (retryCount < this.maxRetries && response.status >= 500) {
+        const error = new Error(message) as ApiError;
+        error.status = response.status;
           return this.request(endpoint, options, retryCount + 1);
         }
 
-        throw new Error(message);
+        const error = new Error(message) as ApiError;
+        error.status = response.status;
+        error.data = data;
+        throw error;
       }
 
       // Handle empty/non-JSON responses safely
@@ -136,8 +164,12 @@ class ApiClient {
     }
 
     // Tournament methods
-    async getTournaments(options: RequestInit = {}) {
-      return this.request('/tournaments', options);
+    /**
+     * Obtiene torneos. Si hideFinalized=true, oculta los finalizados.
+     */
+    async getTournaments(options: RequestInit = {}, hideFinalized: boolean = true/* , fetchOptions: { signal: AbortSignal; headers: { 'Cache-Control': string; }; } */) {
+      const endpoint = `/tournaments?hideFinalized=${hideFinalized ? '1' : '0'}`;
+      return this.request(endpoint, options);
     }
 
     async getTournament(id: string) {
@@ -184,10 +216,7 @@ class ApiClient {
     }
 
     // User methods
-    async getUserProfile(username: string) {
-      return this.request(`/users/${username}`);
-    }
-
+   
     async getUsers(search: string = '', options: RequestInit = {}) {
       const endpoint = '/users' + (search ? `?search=${encodeURIComponent(search)}` : '');
       return this.request(endpoint, options);
@@ -213,16 +242,29 @@ class ApiClient {
       });
     }
 
-    async updateProfile(userData: { username?: string; usdtWallet?: string }) {
-      return this.request('/users/profile', {
-        method: 'PUT',
-        body: JSON.stringify(userData)
-      });
-    }
-
     async getUserStats(userId: string) {
       return this.request(`/users/${userId}/stats`);
     }
+
+    // Methods User Profile
+
+   // User methods
+  async getUserProfile(username: string) {
+    return this.request(`/users/${username}`);
+  }
+
+  async updateProfile(userData: { username?: string; usdtWallet?: string }) {
+    return this.request('/users/profile', {
+      method: 'PUT',
+      body: JSON.stringify(userData)
+    });
+  }
+
+  async deleteUserProfile() {  // NUEVO MÉTODO
+    return this.request('/users/profile/delete', {
+      method: 'DELETE'
+    });
+  }
 
     // Payment methods
     async getPayments(params: { status: string; search: string }, options: RequestInit = {}) {

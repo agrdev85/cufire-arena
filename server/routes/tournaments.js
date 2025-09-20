@@ -7,34 +7,145 @@ const prisma = new PrismaClient();
 
 // Helper function to determine tournament state
 function getFrontendState(tournament, now = new Date()) {
+  // Si el torneo está marcado como inactivo, está finalizado
   if (!tournament.isActive) return "Finalizado";
-  if (tournament.currentAmount >= (tournament.maxAmount || Infinity)) {
-    if (!tournament.startDate) {
-      return "En curso";
-    }
-    const endAt = new Date(tournament.startDate.getTime() + (tournament.duration || 90) * 60000);
-    if (now < endAt) {
-      return "En curso";
-    } else {
-      // Marcar torneo como finalizado y actualizar isActive y endDate
-      if (tournament.isActive) {
-        prisma.tournament.update({
-          where: { id: tournament.id },
-          data: {
-            isActive: false,
-            endDate: endAt
-          }
-        }).catch(() => {});
-      }
+  
+  // Verificar si el torneo ya ha comenzado y ha terminado
+  if (tournament.startDate && tournament.duration) {
+    const endTime = new Date(tournament.startDate.getTime() + tournament.duration * 60000);
+    if (now > endTime) {
       return "Finalizado";
     }
   }
+  
+  // Calcular montos actuales (SOLO pagos verificados) y potenciales (todos los pagos)
+  const currentAmount = tournament.payments 
+    ? tournament.payments.filter(p => p.isActive).reduce((sum, p) => sum + Number(p.amount || 0), 0)
+    : tournament.currentAmount || 0;
+    
+  const potentialAmount = tournament.payments 
+    ? tournament.payments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+    : tournament.potentialAmount || currentAmount;
+
+  // Verificar límite de recaudación (si está definido)
+  if (tournament.maxAmount !== null && tournament.maxAmount !== undefined) {
+    // Si el monto actual (VERIFICADO) alcanzó o superó el máximo, el torneo debe comenzar
+    if (currentAmount >= tournament.maxAmount) {
+      return "En curso";
+    }
+    
+    // Si el monto potencial (incluyendo pendientes) supera el máximo, está completo
+    if (potentialAmount + tournament.registrationFee > tournament.maxAmount) {
+      return "Completo";
+    }
+  }
+
+  // Verificar límite de jugadores (si está definido)
+  if (tournament.maxPlayers !== null && tournament.maxPlayers !== undefined) {
+    const participantCount = tournament.registrations 
+      ? tournament.registrations.length 
+      : tournament.participantCount || 0;
+    
+    if (participantCount >= tournament.maxPlayers) {
+      return "Completo";
+    }
+  }
+
+  // Verificar si el torneo ya comenzó por fecha
+  if (tournament.startDate && now >= tournament.startDate) {
+    return "En curso";
+  }
+
+  // Si no se cumple ninguna de las condiciones anteriores, está abierto
   return "Open";
 }
+
+// NUEVO: GET - Obtener lista de IDs de torneos finalizados ocultos desde DB
+router.get('/hidden-finalized', async (req, res) => {
+  try {
+    // Primero obtenemos todos los torneos para calcular su estado
+    const allTournaments = await prisma.tournament.findMany({
+      include: {
+        payments: {
+          where: { isActive: true }
+        }
+      }
+    });
+
+    const now = new Date();
+    
+    // Filtramos los torneos que están finalizados según nuestra lógica
+    const finalizedTournaments = allTournaments.filter(tournament => {
+      const currentAmount = tournament.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+      const state = getFrontendState({ ...tournament, currentAmount }, now);
+      return state === "Finalizado" && tournament.hiddenFinalized;
+    });
+
+    res.json({ hidden: finalizedTournaments.map(t => t.id) });
+  } catch (error) {
+    console.error('Error getting hidden finalized tournaments:', error);
+    res.status(500).json({ error: 'Error al obtener torneos ocultos' });
+  }
+});
+
+// NUEVO: POST - Ocultar/desocultar torneos finalizados (solo admin)
+router.post('/hidden-finalized', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'No autorizado' });
+    
+    const { hidden, id, hideAll } = req.body;
+    
+    if (hideAll) {
+      // Ocultar todos los torneos finalizados
+      // Primero obtenemos los IDs de los torneos finalizados
+      const allTournaments = await prisma.tournament.findMany({
+        include: {
+          payments: {
+            where: { isActive: true }
+          }
+        }
+      });
+
+      const now = new Date();
+      const finalizedIds = allTournaments
+        .filter(tournament => {
+          const currentAmount = tournament.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+          const state = getFrontendState({ ...tournament, currentAmount }, now);
+          return state === "Finalizado";
+        })
+        .map(t => t.id);
+
+      // Actualizamos todos los torneos finalizados
+      await prisma.tournament.updateMany({
+        where: { id: { in: finalizedIds } },
+        data: { hiddenFinalized: hidden }
+      });
+      
+      return res.json({ success: true, updated: finalizedIds.length });
+    }
+    
+    if (typeof id === 'number') {
+      // Ocultar/desocultar individual
+      await prisma.tournament.update({
+        where: { id },
+        data: { hiddenFinalized: hidden }
+      });
+      return res.json({ success: true });
+    }
+    
+    return res.status(400).json({ error: 'Parámetros inválidos' });
+  } catch (error) {
+    console.error('Error updating hidden finalized:', error);
+    res.status(500).json({ error: 'Error al actualizar torneos ocultos' });
+  }
+});
 
 // GET - Get all tournaments
 router.get('/', async (req, res) => {
   try {
+    // Obtener el parámetro hideFinalized (true por defecto)
+    const hideFinalized = req.query.hideFinalized !== '0' && req.query.hideFinalized !== 'false';
+    
     const tournaments = await prisma.tournament.findMany({
       include: {
         registrations: {
@@ -47,28 +158,29 @@ router.get('/', async (req, res) => {
         _count: {
           select: { registrations: true }
         },
-        payments: {
-          where: { isActive: true }
-        }
+        payments: true // CAMBIAR: incluir TODOS los pagos, no solo los activos
       },
       orderBy: { createdAt: 'desc' }
     });
 
     const now = new Date();
     const formattedTournaments = tournaments.map(tournament => {
+      // Calcular montos correctamente
       const currentAmount = tournament.payments
-        .filter(payment => payment.isActive)
+        .filter(payment => payment.isActive) // Solo pagos verificados
         .reduce((sum, payment) => sum + Number(payment.amount), 0);
+        
+      const potentialAmount = tournament.payments // Todos los pagos
+        .reduce((sum, payment) => sum + Number(payment.amount), 0);
+
       const frontendState = getFrontendState({ ...tournament, currentAmount }, now);
+      
       let countdownRemaining = null;
-      if (
-        tournament.startDate &&
-        tournament.duration &&
-        frontendState === "En curso"
-      ) {
+      if (tournament.startDate && tournament.duration && frontendState === "En curso") {
         const endTime = new Date(tournament.startDate.getTime() + tournament.duration * 60000);
         countdownRemaining = Math.max(0, Math.floor((endTime - now) / 1000));
       }
+
       return {
         id: tournament.id,
         name: tournament.name,
@@ -76,6 +188,7 @@ router.get('/', async (req, res) => {
         maxPlayers: tournament.maxPlayers,
         maxAmount: tournament.maxAmount,
         currentAmount,
+        potentialAmount,
         registrationFee: tournament.registrationFee,
         prizePercentage: tournament.prizePercentage || 70,
         startDate: tournament.startDate,
@@ -83,12 +196,22 @@ router.get('/', async (req, res) => {
         duration: tournament.duration,
         isActive: tournament.isActive,
         frontendState,
+        hiddenFinalized: tournament.hiddenFinalized,
         participantCount: tournament._count.registrations,
         participants: tournament.registrations.map(reg => reg.user.username),
         countdownRemaining
       };
     });
-    res.json({ tournaments: formattedTournaments });
+
+    // Filtrar torneos finalizados ocultos
+    const filteredTournaments = hideFinalized 
+      ? formattedTournaments.filter(t => 
+          t.frontendState !== "Finalizado" || 
+          (t.frontendState === "Finalizado" && !t.hiddenFinalized)
+        )
+      : formattedTournaments;
+
+    res.json({ tournaments: filteredTournaments });
   } catch (error) {
     console.error('Get tournaments error:', error);
     res.status(500).json({ error: 'Error al obtener torneos' });
@@ -122,9 +245,7 @@ router.get('/:id', async (req, res) => {
           },
           orderBy: { value: 'desc' }
         },
-        payments: {
-          where: { isActive: true }
-        }
+        payments: true // CAMBIAR: incluir TODOS los pagos
       }
     });
 
@@ -133,9 +254,15 @@ router.get('/:id', async (req, res) => {
     }
 
     const now = new Date();
-    const currentAmount = tournament.payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const currentAmount = tournament.payments
+      .filter(payment => payment.isActive) // Solo pagos verificados
+      .reduce((sum, payment) => sum + Number(payment.amount), 0);
+      
+    const potentialAmount = tournament.payments // Todos los pagos
+      .reduce((sum, payment) => sum + Number(payment.amount), 0);
+      
     const frontendState = getFrontendState({ ...tournament, currentAmount }, now);
-    
+
     let endDate = tournament.endDate;
     // Calcular endDate si tiene startDate y duration
     if (tournament.startDate && tournament.duration) {
@@ -144,6 +271,7 @@ router.get('/:id', async (req, res) => {
         endDate = calculatedEnd;
       }
     }
+
     const formattedTournament = {
       id: tournament.id,
       name: tournament.name,
@@ -151,6 +279,7 @@ router.get('/:id', async (req, res) => {
       maxPlayers: tournament.maxPlayers,
       maxAmount: tournament.maxAmount,
       currentAmount,
+      potentialAmount,
       registrationFee: tournament.registrationFee,
       prizePercentage: tournament.prizePercentage || 70,
       startDate: tournament.startDate,
@@ -170,7 +299,7 @@ router.get('/:id', async (req, res) => {
         score: score.value,
         createdAt: score.createdAt
       })),
-      countdownRemaining: tournament.startDate && tournament.duration && frontendState === "En curso" 
+      countdownRemaining: tournament.startDate && tournament.duration && frontendState === "En curso"
         ? Math.max(0, Math.floor((new Date(tournament.startDate.getTime() + tournament.duration * 60000) - now) / 1000))
         : null
     };
@@ -263,15 +392,15 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     // Primero eliminamos registros relacionados para evitar errores de foreign key
     await prisma.$transaction([
-      prisma.tournamentRegistration.deleteMany({
+      /*prisma.tournamentRegistration.deleteMany({
         where: { tournamentId }
       }),
       prisma.payment.deleteMany({
         where: { tournamentId }
       }),
-      prisma.score.deleteMany({
+       prisma.score.deleteMany({
         where: { tournamentId }
-      }),
+      }), */
       prisma.tournament.delete({
         where: { id: tournamentId }
       })
@@ -286,6 +415,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al eliminar torneo' });
   }
 });
+
 
 // POST - Join tournament
 router.post('/:id/join', authMiddleware, async (req, res) => {
@@ -302,18 +432,52 @@ router.post('/:id/join', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'ID de torneo inválido' });
     }
 
-    // Check if tournament exists and is in Open state
+    // Check if tournament exists and get complete information
     const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId }
+      where: { id: tournamentId },
+      include: {
+        payments: true, // Get ALL payments
+        registrations: true
+      }
     });
 
     if (!tournament) {
       return res.status(404).json({ error: 'Torneo no encontrado' });
     }
 
-    const frontendState = getFrontendState(tournament);
+    // Calcular montos actuales (solo verificados) y potenciales (todos)
+    const currentAmount = tournament.payments
+      .filter(payment => payment.isActive)
+      .reduce((sum, payment) => sum + Number(payment.amount), 0);
+      
+    const potentialAmount = tournament.payments
+      .reduce((sum, payment) => sum + Number(payment.amount), 0);
+
+    const frontendState = getFrontendState({ ...tournament, currentAmount });
+    
+    // Solo permitir unirse si el torneo está abierto
     if (frontendState !== "Open") {
       return res.status(400).json({ error: 'El torneo no está abierto a inscripciones' });
+    }
+
+    // Check if maxAmount is defined and if adding this registration would exceed it
+    if (tournament.maxAmount !== null && tournament.maxAmount !== undefined) {
+      if (potentialAmount + tournament.registrationFee > tournament.maxAmount) {
+        return res.status(400).json({ 
+          error: 'El torneo ha alcanzado su capacidad máxima de recaudación. No se pueden aceptar más inscripciones.' 
+        });
+      }
+    }
+
+    // Check if maxPlayers is defined and if adding this registration would exceed it
+    if (tournament.maxPlayers !== null && tournament.maxPlayers !== undefined) {
+      const currentPlayers = tournament.registrations.length;
+
+      if (currentPlayers >= tournament.maxPlayers) {
+        return res.status(400).json({
+          error: 'El torneo ha alcanzado su capacidad máxima de jugadores. No se pueden aceptar más inscripciones.'
+        });
+      }
     }
 
     // Check if user is already in any active tournament
@@ -474,6 +638,20 @@ router.get('/active-registration', authMiddleware, async (req, res) => {
     console.error('Active registration check error:', error);
     res.status(500).json({ error: 'Error al verificar registro activo' });
   }
+});
+
+// GET - Obtener lista global de torneos finalizados ocultos
+router.get('/hidden-finalized', (req, res) => {
+  res.json({ hidden: hiddenFinalizedTournaments });
+});
+
+// POST - Actualizar lista global (solo admin)
+router.post('/hidden-finalized', authMiddleware, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Solo admin' });
+  const { hidden } = req.body;
+  if (!Array.isArray(hidden)) return res.status(400).json({ error: 'Formato inválido' });
+  hiddenFinalizedTournaments = hidden;
+  res.json({ hidden: hiddenFinalizedTournaments });
 });
 
 router.getFrontendState = getFrontendState;

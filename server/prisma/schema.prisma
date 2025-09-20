@@ -41,6 +41,7 @@ model Tournament {
   endDate         DateTime? @db.Timestamp(6)
   duration        Int?      // minutos
   isActive        Boolean   @default(true)
+  hiddenFinalized Boolean   @default(false) // NUEVO: ocultar torneo finalizado global
   createdAt       DateTime  @default(now()) @db.Timestamp(6)
   updatedAt       DateTime  @updatedAt @db.Timestamp(6)
   

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Medal, Award } from "lucide-react";
@@ -13,6 +14,7 @@ interface TournamentOption {
   frontendState: "Open" | "En curso" | "Finalizado";
   startDate?: string;
   endDate?: string;
+  hiddenFinalized?: boolean;
 }
 
 interface TournamentDetail {
@@ -37,27 +39,87 @@ const Prizes = () => {
   const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [detail, setDetail] = useState<TournamentDetail | null>(null);
+  const [hideFinalized, setHideFinalized] = useState(false);
+  const [hiddenFinalizedIds, setHiddenFinalizedIds] = useState<number[]>([]);
+  // Cargar estado global de ocultar finalizados y lista de IDs ocultos
+  useEffect(() => {
+    const loadGlobalState = async () => {
+      // Cargar IDs ocultos desde backend primero
+      const res = await api.getHiddenFinalizedTournaments();
+      setHiddenFinalizedIds(res.hidden || []);
+      
+      // Luego cargar switch global
+      const stored = typeof window !== 'undefined' ? localStorage.getItem('hideFinalizedTournaments') : null;
+      setHideFinalized(stored === null ? true : stored === 'true');
+    };
+
+    // Cargar estado inicial
+    loadGlobalState();
+
+    // Función de sincronización para actualizaciones
+    const sync = async () => {
+      try {
+        const res = await api.getHiddenFinalizedTournaments();
+        setHiddenFinalizedIds(res.hidden || []);
+        const stored = localStorage.getItem('hideFinalizedTournaments');
+        setHideFinalized(stored === null ? true : stored === 'true');
+      } catch (error) {
+        console.error('Error syncing hidden tournaments:', error);
+      }
+    };
+
+    // Configurar event listeners
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'hideFinalizedTournaments' || e.key === 'hiddenFinalizedTournamentsUpdated') {
+        sync();
+      }
+    };
+
+    // Escuchar eventos de cambios
+    window.addEventListener('hideFinalizedTournamentsChanged', sync);
+    window.addEventListener('hiddenFinalizedTournamentsUpdated', sync);
+    window.addEventListener('storage', handleStorageChange);
+
+    // Polling cada 30 segundos para mantener sincronización
+    const pollInterval = setInterval(sync, 30000);
+
+    return () => {
+      window.removeEventListener('hideFinalizedTournamentsChanged', sync);
+      window.removeEventListener('hiddenFinalizedTournamentsUpdated', sync);
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(pollInterval);
+    };
+  }, []);
 
   useEffect(() => {
-    (async () => {
+    const fetchTournaments = async () => {
       try {
-          const res = await api.getTournaments();
-          // Mostrar todos los torneos, activos y finalizados
-          const options: TournamentOption[] = (res.tournaments || [])
-            .map((t: any) => ({
-              id: t.id,
-              name: t.name,
-              maxAmount: t.maxAmount ?? 0,
-              frontendState: t.frontendState,
-              startDate: t.startDate,
-              endDate: t.endDate
-            }));
-          setTournaments(options);
-          if (options.length > 0) setSelectedId(String(options[0].id));
-      } catch (e) {
-        // silent
-      }
-    })();
+        // Siempre obtener todos los torneos, sin filtrar por hideFinalized
+        const res = await api.getTournaments({}, false);
+        // Solo mostrar torneos donde hiddenFinalized es false
+        const options: TournamentOption[] = (res.tournaments || [])
+          .filter((t: any) => !t.hiddenFinalized)
+          .map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            maxAmount: t.maxAmount ?? 0,
+            prizePercentage: t.prizePercentage ?? 0,
+            frontendState: t.frontendState,
+            startDate: t.startDate,
+            endDate: t.endDate,
+            hiddenFinalized: t.hiddenFinalized
+          }));
+        setTournaments(options);
+      } catch (e) {}
+    };
+    fetchTournaments();
+    const handleVisibilityChange = () => fetchTournaments();
+    window.addEventListener('hideFinalizedTournamentsChanged', handleVisibilityChange);
+    window.addEventListener('hiddenFinalizedTournamentsUpdated', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('hideFinalizedTournamentsChanged', handleVisibilityChange);
+      window.removeEventListener('hiddenFinalizedTournamentsUpdated', handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -121,13 +183,15 @@ const Prizes = () => {
             Selecciona un torneo para ver el reparto de premios Top-10
           </p>
         </div>
-
         <div className="max-w-xl mx-auto mb-8">
           <Select value={selectedId} onValueChange={setSelectedId}>
             <SelectTrigger>
               <SelectValue placeholder="Selecciona un torneo" />
             </SelectTrigger>
             <SelectContent>
+              {tournaments.length === 0 && (
+                <div className="px-4 py-2 text-muted-foreground">No hay torneos disponibles</div>
+              )}
               {tournaments.map((t) => (
                 <SelectItem key={t.id} value={String(t.id)}>
                   {t.name} <span className="text-muted-foreground">({t.frontendState})</span>
