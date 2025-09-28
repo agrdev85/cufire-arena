@@ -1,13 +1,21 @@
+<<<<<<< HEAD
 # Welcome to your cufire-arena project
 
 ## Project info
 
 **URL**: https://github.com/agrdev85/cufire-arena/tree/main
 
+=======
+# Welcome to your project
+
+## Project info
+
+>>>>>>> 1b147176312357daf5cbd3946fdbee956305587d
 ## How can I edit this code?
 
 There are several ways of editing your application.
 
+<<<<<<< HEAD
 **Use cufire-arena**
 
 Simply visit the [cufire-arena Project](https://github.com/agrdev85/cufire-arena/tree/main) and start prompting.
@@ -17,6 +25,13 @@ Changes made via cufire-arena will be committed automatically to this repo.
 **Use your preferred IDE**
 
 If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in cufire-arena.
+=======
+**Use**
+
+**Use your preferred IDE**
+
+If you want to work locally using your own IDE, you can clone this repo and push changes.
+>>>>>>> 1b147176312357daf5cbd3946fdbee956305587d
 
 The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
@@ -62,17 +77,23 @@ This project is built with:
 
 ## How can I deploy this project?
 
+<<<<<<< HEAD
 Simply open [cufire-arena](https://github.com/agrdev85/cufire-arena/tree/main) and click on Share -> Publish.
 
 ## Can I connect a custom domain to my cufire-arena project?
 
+=======
+>>>>>>> 1b147176312357daf5cbd3946fdbee956305587d
 Yes, you can!
 
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
+<<<<<<< HEAD
 Read more here: [Setting up a custom domain](https://docs.cufire-arena.dev/tips-tricks/custom-domain#step-by-step-guide)
 
 
+=======
+>>>>>>> 1b147176312357daf5cbd3946fdbee956305587d
 ## Instalar Backend
     cd server && npm install
     Crear .env con tu PostgreSQL local
