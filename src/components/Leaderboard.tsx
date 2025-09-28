@@ -75,7 +75,7 @@ const Leaderboard = () => {
           </p>
         </div>
 
-        <Card className="bg-card/50 backdrop-blur-sm cyber-border">
+        <Card className="bg-card/50 backdrop-blur-sm cyber-border leaderboard-mobile">
           <CardHeader>
             <CardTitle className="text-2xl font-orbitron text-center">
               <span className="text-neon-purple">TOP 10 </span>

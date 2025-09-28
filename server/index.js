@@ -4,6 +4,9 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+// Initialize Telegram bot
+require('./bot');
+
 const { corsOptions } = require('./cors-config'); // Importar configuración CORS
 
 const authRoutes = require('./routes/auth');

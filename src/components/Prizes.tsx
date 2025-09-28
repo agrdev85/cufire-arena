@@ -206,8 +206,8 @@ const Prizes = () => {
             <CardTitle className="text-2xl font-orbitron text-center">
               <span className="text-neon-purple">
                 {detail ? `Top 10 `: "Selecciona un torneo"}
-              </span> 
-              <span className="text-neon-blue"> 
+              </span>
+              <span className="text-neon-blue">
                 {detail ? `• ${detail.name}` : ""}
               </span>
             </CardTitle>

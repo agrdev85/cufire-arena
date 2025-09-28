@@ -61,9 +61,16 @@ router.put('/:paymentId/verify', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'ID de pago inválido' });
     }
 
+    // Obtener el pago con la información del torneo y sus registros
     const payment = await prisma.payment.findUnique({
       where: { id: paymentId },
-      include: { tournament: true }
+      include: { 
+        tournament: {
+          include: {
+            registrations: true // Incluir registros para contar participantes
+          }
+        }
+      }
     });
 
     if (!payment) {
@@ -77,42 +84,65 @@ router.put('/:paymentId/verify', authMiddleware, async (req, res) => {
     // Update payment and tournament amount
     const updatedPayment = await prisma.$transaction(async (tx) => {
       // Mark payment as verified
-      const payment = await tx.payment.update({
+      const updatedPayment = await tx.payment.update({
         where: { id: paymentId },
         data: { isActive: true }
       });
 
       // Update tournament current amount
-      const tournament = await tx.tournament.update({
+      const updatedTournament = await tx.tournament.update({
         where: { id: payment.tournamentId },
         data: {
           currentAmount: {
             increment: payment.amount
           }
+        },
+        include: {
+          registrations: true // Incluir registros actualizados
         }
       });
 
-      // Check if tournament should start
-      if (tournament.currentAmount >= (tournament.maxAmount || Infinity) && !tournament.startDate) {
+      // Calcular el número actual de participantes
+      const participantCount = updatedTournament.registrations.length;
+
+      // Check if tournament should start based on amount OR players
+      const shouldStartByAmount = updatedTournament.currentAmount >= (updatedTournament.maxAmount || Infinity);
+      const shouldStartByPlayers = updatedTournament.maxPlayers !== null && 
+                                  updatedTournament.maxPlayers !== undefined && 
+                                  participantCount >= updatedTournament.maxPlayers;
+
+      // Si se alcanza el límite de monto O de jugadores, iniciar el torneo
+      if ((shouldStartByAmount || shouldStartByPlayers) && !updatedTournament.startDate) {
         await tx.tournament.update({
-          where: { id: tournament.id },
+          where: { id: updatedTournament.id },
           data: { startDate: new Date() }
         });
+        
+        // Actualizar el torneo con la nueva fecha de inicio
+        updatedTournament.startDate = new Date();
       }
 
-      return { payment, tournament };
+      return { 
+        payment: updatedPayment, 
+        tournament: updatedTournament,
+        participantCount 
+      };
     });
 
-    res.json({
+    // Preparar respuesta
+    const response = {
       message: 'Pago verificado exitosamente',
       paymentId: updatedPayment.payment.id,
       verified: true,
       tournament: {
         id: updatedPayment.tournament.id,
         currentAmount: updatedPayment.tournament.currentAmount,
+        participantCount: updatedPayment.participantCount,
         frontendState: getFrontendState(updatedPayment.tournament)
       }
-    });
+    };
+
+    res.json(response);
   } catch (error) {
     console.error('Verify payment error:', error);
     res.status(500).json({ error: 'Error al verificar pago' });

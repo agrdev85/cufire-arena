@@ -51,18 +51,38 @@ const TournamentCard = ({
   const [hasActiveRegistration, setHasActiveRegistration] = useState(false);
   const [calculatedState, setCalculatedState] = useState<"Open" | "En curso" | "Finalizado" | "Completo">(frontendState);
 
-  useEffect(() => {
-    const checkActive = async () => {
-      if (!isAuthenticated) return;
-      try {
-        const res = await (api as any).hasActiveRegistration();
-        setHasActiveRegistration(!!res.hasActiveRegistration);
-      } catch (e) {
-        // silent
-      }
-    };
-    checkActive();
-  }, [isAuthenticated]);
+// Estado para cache
+const [lastActiveCheck, setLastActiveCheck] = useState<number>(0);
+const ACTIVE_CHECK_CACHE_TIME = 30000; // 30 segundos de cache
+
+useEffect(() => {
+  const checkActive = async () => {
+    if (!isAuthenticated) return;
+    
+    // Usar cache para evitar solicitudes frecuentes
+    const now = Date.now();
+    if (now - lastActiveCheck < ACTIVE_CHECK_CACHE_TIME) {
+      return;
+    }
+
+    try {
+      const res = await api.hasActiveRegistration();
+      setHasActiveRegistration(!!res.hasActiveRegistration);
+      setLastActiveCheck(now);
+    } catch (e) {
+      console.error('Error checking active registration:', e);
+      // En caso de error, no bloquear al usuario
+      setHasActiveRegistration(false);
+    }
+  };
+  
+  checkActive();
+  
+  // Limpiar cache al desmontar
+  return () => {
+    setLastActiveCheck(0);
+  };
+}, [isAuthenticated, lastActiveCheck]);
 
   // Determinar el estado real del torneo considerando los límites
   useEffect(() => {
@@ -266,7 +286,7 @@ const TournamentCard = ({
   };
 
   return (
-    <Card className="bg-card/50 backdrop-blur-sm cyber-border hover:shadow-glow-primary transition-all duration-300 hover:scale-105">
+    <Card className="bg-card/50 backdrop-blur-sm cyber-border hover:shadow-glow-primary transition-all duration-300 hover:scale-105 tournament-card">
       <CardHeader className="pb-4">
         <div className="flex justify-between items-start mb-2">
           <CardTitle className="text-xl font-orbitron text-foreground">{name}</CardTitle>
@@ -277,7 +297,7 @@ const TournamentCard = ({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="info-grid">
           <div className="flex items-center space-x-2">
             <DollarSign className="h-4 w-4 text-cyber-gold" />
             <div>

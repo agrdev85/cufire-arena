@@ -5,12 +5,12 @@ const authMiddleware = require('../middleware/auth');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Helper function to determine tournament state
+// Helper function to determine tournament state (MEJORADA)
 function getFrontendState(tournament, now = new Date()) {
   // Si el torneo está marcado como inactivo, está finalizado
   if (!tournament.isActive) return "Finalizado";
   
-  // Verificar si el torneo ya ha comenzado y ha terminado
+  // Verificar si el torneo ya ha comenzado y ha terminado por tiempo
   if (tournament.startDate && tournament.duration) {
     const endTime = new Date(tournament.startDate.getTime() + tournament.duration * 60000);
     if (now > endTime) {
@@ -18,7 +18,7 @@ function getFrontendState(tournament, now = new Date()) {
     }
   }
   
-  // Calcular montos actuales (SOLO pagos verificados) y potenciales (todos los pagos)
+  // Calcular montos actuales (SOLO pagos verificados)
   const currentAmount = tournament.payments 
     ? tournament.payments.filter(p => p.isActive).reduce((sum, p) => sum + Number(p.amount || 0), 0)
     : tournament.currentAmount || 0;
@@ -29,9 +29,13 @@ function getFrontendState(tournament, now = new Date()) {
 
   // Verificar límite de recaudación (si está definido)
   if (tournament.maxAmount !== null && tournament.maxAmount !== undefined) {
-    // Si el monto actual (VERIFICADO) alcanzó o superó el máximo, el torneo debe comenzar
+    // Si el monto actual (VERIFICADO) alcanzó o superó el máximo
     if (currentAmount >= tournament.maxAmount) {
-      return "En curso";
+      // Si ya comenzó, está en curso; si no, está completo
+      if (tournament.startDate && now >= tournament.startDate) {
+        return "En curso";
+      }
+      return "Completo";
     }
     
     // Si el monto potencial (incluyendo pendientes) supera el máximo, está completo
@@ -47,12 +51,23 @@ function getFrontendState(tournament, now = new Date()) {
       : tournament.participantCount || 0;
     
     if (participantCount >= tournament.maxPlayers) {
+      // Si ya comenzó, está en curso; si no, está completo
+      if (tournament.startDate && now >= tournament.startDate) {
+        return "En curso";
+      }
       return "Completo";
     }
   }
 
   // Verificar si el torneo ya comenzó por fecha
   if (tournament.startDate && now >= tournament.startDate) {
+    // Si tiene duración, verificar si ya terminó
+    if (tournament.duration) {
+      const endTime = new Date(tournament.startDate.getTime() + tournament.duration * 60000);
+      if (now > endTime) {
+        return "Finalizado";
+      }
+    }
     return "En curso";
   }
 
@@ -390,21 +405,16 @@ router.delete('/:id', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'ID de torneo inválido' });
     }
 
-    // Primero eliminamos registros relacionados para evitar errores de foreign key
-    await prisma.$transaction([
-      /*prisma.tournamentRegistration.deleteMany({
-        where: { tournamentId }
-      }),
-      prisma.payment.deleteMany({
-        where: { tournamentId }
-      }),
-       prisma.score.deleteMany({
-        where: { tournamentId }
-      }), */
-      prisma.tournament.delete({
-        where: { id: tournamentId }
-      })
-    ]);
+    // Primero actualizamos los scores para que persistan (set tournamentId = null)
+    await prisma.score.updateMany({
+      where: { tournamentId },
+      data: { tournamentId: null }
+    });
+
+    // Luego eliminamos el torneo (los registros y pagos se eliminan en cascada)
+    await prisma.tournament.delete({
+      where: { id: tournamentId }
+    });
 
     res.json({ message: 'Torneo eliminado exitosamente' });
   } catch (error) {
@@ -417,129 +427,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 });
 
 
-// POST - Join tournament
-router.post('/:id/join', authMiddleware, async (req, res) => {
-  try {
-    const tournamentId = parseInt(req.params.id);
-    const userId = req.user.id;
-    const { txHash } = req.body;
-
-    if (!txHash) {
-      return res.status(400).json({ error: 'Hash de transacción requerido' });
-    }
-
-    if (isNaN(tournamentId)) {
-      return res.status(400).json({ error: 'ID de torneo inválido' });
-    }
-
-    // Check if tournament exists and get complete information
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-      include: {
-        payments: true, // Get ALL payments
-        registrations: true
-      }
-    });
-
-    if (!tournament) {
-      return res.status(404).json({ error: 'Torneo no encontrado' });
-    }
-
-    // Calcular montos actuales (solo verificados) y potenciales (todos)
-    const currentAmount = tournament.payments
-      .filter(payment => payment.isActive)
-      .reduce((sum, payment) => sum + Number(payment.amount), 0);
-      
-    const potentialAmount = tournament.payments
-      .reduce((sum, payment) => sum + Number(payment.amount), 0);
-
-    const frontendState = getFrontendState({ ...tournament, currentAmount });
-    
-    // Solo permitir unirse si el torneo está abierto
-    if (frontendState !== "Open") {
-      return res.status(400).json({ error: 'El torneo no está abierto a inscripciones' });
-    }
-
-    // Check if maxAmount is defined and if adding this registration would exceed it
-    if (tournament.maxAmount !== null && tournament.maxAmount !== undefined) {
-      if (potentialAmount + tournament.registrationFee > tournament.maxAmount) {
-        return res.status(400).json({ 
-          error: 'El torneo ha alcanzado su capacidad máxima de recaudación. No se pueden aceptar más inscripciones.' 
-        });
-      }
-    }
-
-    // Check if maxPlayers is defined and if adding this registration would exceed it
-    if (tournament.maxPlayers !== null && tournament.maxPlayers !== undefined) {
-      const currentPlayers = tournament.registrations.length;
-
-      if (currentPlayers >= tournament.maxPlayers) {
-        return res.status(400).json({
-          error: 'El torneo ha alcanzado su capacidad máxima de jugadores. No se pueden aceptar más inscripciones.'
-        });
-      }
-    }
-
-    // Check if user is already in any active tournament
-    const existingRegistration = await prisma.tournamentRegistration.findFirst({
-      where: {
-        userId,
-        tournament: {
-          isActive: true
-        }
-      }
-    });
-
-    if (existingRegistration) {
-      return res.status(400).json({ error: 'Ya estás inscrito en otro torneo activo' });
-    }
-
-    // Check if user already joined this tournament
-    const existingTournamentRegistration = await prisma.tournamentRegistration.findUnique({
-      where: {
-        userId_tournamentId: {
-          userId,
-          tournamentId
-        }
-      }
-    });
-
-    if (existingTournamentRegistration) {
-      return res.status(400).json({ error: 'Ya estás inscrito en este torneo' });
-    }
-
-    // Create payment record (pending verification)
-    const payment = await prisma.payment.create({
-      data: {
-        userId,
-        tournamentId,
-        txHash,
-        amount: tournament.registrationFee,
-        isActive: false // Pending admin verification
-      }
-    });
-
-    // Create tournament registration
-    const registration = await prisma.tournamentRegistration.create({
-      data: {
-        userId,
-        tournamentId
-      }
-    });
-
-    res.status(201).json({
-      message: 'Inscripción exitosa. Pago pendiente de verificación.',
-      paymentId: payment.id,
-      registrationId: registration.id,
-      status: 'pending'
-    });
-  } catch (error) {
-    console.error('Join tournament error:', error);
-    res.status(500).json({ error: 'Error al unirse al torneo' });
-  }
-});
-
-// POST - Distribute prizes (admin only)
+// POST - Distribute prizes (admin only) - MEJORADO
 router.post('/:id/distribute', authMiddleware, async (req, res) => {
   try {
     if (!req.user.isAdmin) {
@@ -566,17 +454,25 @@ router.post('/:id/distribute', authMiddleware, async (req, res) => {
         },
         payments: {
           where: { isActive: true }
-        }
+        },
+        registrations: true
       }
     });
 
     if (!tournament) return res.status(404).json({ error: 'Torneo no encontrado' });
 
-    const currentAmount = tournament.payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const frontendState = getFrontendState({ ...tournament, currentAmount });
+    const currentAmount = tournament.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+    const frontendState = getFrontendState({ 
+      ...tournament, 
+      currentAmount,
+      participantCount: tournament.registrations.length
+    });
     
     if (frontendState !== "Finalizado") {
-      return res.status(400).json({ error: 'El torneo debe estar finalizado para distribuir premios' });
+      return res.status(400).json({ 
+        error: 'El torneo debe estar finalizado para distribuir premios',
+        currentState: frontendState
+      });
     }
     
     // Prize calculation function
@@ -584,7 +480,7 @@ router.post('/:id/distribute', authMiddleware, async (req, res) => {
       const PRIZE_MAP = [0.30, 0.18, 0.13, 0.09, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05];
       
       if (rank < 1 || rank > 10) return 0;
-      const prizeBase = maxAmount * (prizePercentage / 100);
+      const prizeBase = Number(maxAmount) * (Number(prizePercentage) / 100);
       return Math.floor(prizeBase * PRIZE_MAP[rank - 1] * 100) / 100;
     }
 
@@ -598,20 +494,28 @@ router.post('/:id/distribute', authMiddleware, async (req, res) => {
         username: score.user.username,
         usdtWallet: score.user.usdtWallet,
         score: score.value,
-        prizeUSDT
+        prizeUSDT: prizeUSDT.toFixed(2)
       };
     });
 
-    // Mark tournament as inactive (distributed)
-    await prisma.tournament.update({
-      where: { id: tournamentId },
-      data: { isActive: false }
+    // Mark tournament as inactive (distributed) usando transacción
+    await prisma.$transaction(async (tx) => {
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: { isActive: false }
+      });
+      
+      // Opcional: también puedes marcar los registros como inactivos si lo deseas
+      // await tx.tournamentRegistration.updateMany({
+      //   where: { tournamentId },
+      //   data: { isActive: false }
+      // });
     });
 
     res.json({
       tournamentId,
       prizes,
-      totalPrizePool: prizes.reduce((sum, prize) => sum + prize.prizeUSDT, 0),
+      totalPrizePool: prizes.reduce((sum, prize) => sum + Number(prize.prizeUSDT), 0).toFixed(2),
       message: 'Premios calculados y torneo finalizado'
     });
   } catch (error) {
@@ -621,22 +525,240 @@ router.post('/:id/distribute', authMiddleware, async (req, res) => {
 });
 
 
-// GET - Check if user has active registration
+// GET - Check if user has active registration (OPTIMIZADO)
 router.get('/active-registration', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const payment = await prisma.payment.findFirst({
+    const now = new Date();
+    
+    // Buscar el ÚLTIMO registro de torneo del usuario que podría estar activo
+    const activeRegistration = await prisma.tournamentRegistration.findFirst({
       where: {
         userId,
-        isActive: true,
-        tournament: { isActive: true }
+        tournament: {
+          isActive: true,
+          OR: [
+            // Torneos que comenzaron recientemente (últimas 48 horas)
+            {
+              startDate: {
+                gte: new Date(now.getTime() - (48 * 60 * 60000)),
+                lte: now
+              }
+            },
+            // Torneos que no han comenzado pero están activos
+            {
+              startDate: null,
+              isActive: true
+            },
+            // Torneos sin fecha pero activos
+            {
+              startDate: {
+                equals: null
+              }
+            }
+          ]
+        }
       },
-      select: { tournamentId: true }
+      include: {
+        tournament: {
+          select: {
+            id: true,
+            name: true,
+            isActive: true,
+            startDate: true,
+            duration: true,
+            maxAmount: true,
+            maxPlayers: true
+          }
+        }
+      },
+      orderBy: {
+        registeredAt: 'desc'
+      }
     });
-    res.json({ hasActiveRegistration: !!payment, tournamentId: payment?.tournamentId || null });
+
+    // Si no hay registro, retornar false inmediatamente
+    if (!activeRegistration) {
+      return res.json({ 
+        hasActiveRegistration: false, 
+        tournamentId: null 
+      });
+    }
+
+    const tournament = activeRegistration.tournament;
+    
+    // Verificación rápida del estado del torneo
+    let isActuallyActive = tournament.isActive;
+    
+    // Verificar si el torneo terminó por tiempo
+    if (tournament.startDate && tournament.duration) {
+      const endTime = new Date(tournament.startDate.getTime() + tournament.duration * 60000);
+      if (now > endTime) {
+        isActuallyActive = false;
+      }
+    }
+
+    res.json({ 
+      hasActiveRegistration: isActuallyActive, 
+      tournamentId: isActuallyActive ? activeRegistration.tournamentId : null 
+    });
   } catch (error) {
     console.error('Active registration check error:', error);
     res.status(500).json({ error: 'Error al verificar registro activo' });
+  }
+});
+
+// POST - Join tournament (ULTRA OPTIMIZADO)
+router.post('/:id/join', authMiddleware, async (req, res) => {
+  try {
+    const tournamentId = parseInt(req.params.id);
+    const userId = req.user.id;
+    const { txHash } = req.body;
+
+    if (!txHash) {
+      return res.status(400).json({ error: 'Hash de transacción requerido' });
+    }
+
+    if (isNaN(tournamentId)) {
+      return res.status(400).json({ error: 'ID de torneo inválido' });
+    }
+
+    // VERIFICACIÓN RÁPIDA 1: ¿Ya está inscrito en ESTE torneo?
+    const existingInThisTournament = await prisma.tournamentRegistration.findUnique({
+      where: {
+        userId_tournamentId: {
+          userId,
+          tournamentId
+        }
+      },
+      select: { id: true }
+    });
+
+    if (existingInThisTournament) {
+      return res.status(400).json({ error: 'Ya estás inscrito en este torneo' });
+    }
+
+    // VERIFICACIÓN RÁPIDA 2: ¿Tiene algún torneo activo?
+    const now = new Date();
+    const activeRegistration = await prisma.tournamentRegistration.findFirst({
+      where: {
+        userId,
+        tournament: {
+          isActive: true,
+          OR: [
+            {
+              startDate: {
+                gte: new Date(now.getTime() - (48 * 60 * 60000))
+              }
+            },
+            { startDate: null }
+          ]
+        }
+      },
+      select: {
+        tournamentId: true,
+        tournament: {
+          select: {
+            startDate: true,
+            duration: true
+          }
+        }
+      }
+    });
+
+    if (activeRegistration) {
+      const tournament = activeRegistration.tournament;
+      let isActive = true;
+      
+      // Verificación rápida de si el torneo terminó
+      if (tournament.startDate && tournament.duration) {
+        const endTime = new Date(tournament.startDate.getTime() + tournament.duration * 60000);
+        if (now > endTime) {
+          isActive = false;
+        }
+      }
+      
+      if (isActive) {
+        return res.status(400).json({ error: 'Ya estás inscrito en otro torneo activo' });
+      }
+    }
+
+    // Obtener información básica del torneo
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: {
+        id: true,
+        name: true,
+        maxPlayers: true,
+        maxAmount: true,
+        registrationFee: true,
+        isActive: true,
+        startDate: true,
+        duration: true,
+        _count: {
+          select: {
+            registrations: true,
+            payments: {
+              where: { isActive: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!tournament) {
+      return res.status(404).json({ error: 'Torneo no encontrado' });
+    }
+
+    // Verificaciones rápidas del torneo
+    if (!tournament.isActive) {
+      return res.status(400).json({ error: 'El torneo no está activo' });
+    }
+
+    if (tournament.startDate && now >= tournament.startDate) {
+      return res.status(400).json({ error: 'El torneo ya comenzó' });
+    }
+
+    if (tournament.maxPlayers && tournament._count.registrations >= tournament.maxPlayers) {
+      return res.status(400).json({ error: 'El torneo está lleno' });
+    }
+
+    if (tournament.maxAmount) {
+      const totalCollected = tournament._count.payments * tournament.registrationFee;
+      if (totalCollected >= tournament.maxAmount) {
+        return res.status(400).json({ error: 'El torneo alcanzó el límite de recaudación' });
+      }
+    }
+
+    // CREAR REGISTRO - TODO OK
+    const [payment, registration] = await prisma.$transaction([
+      prisma.payment.create({
+        data: {
+          userId,
+          tournamentId,
+          txHash,
+          amount: tournament.registrationFee,
+          isActive: false
+        }
+      }),
+      prisma.tournamentRegistration.create({
+        data: {
+          userId,
+          tournamentId
+        }
+      })
+    ]);
+
+    res.status(201).json({
+      message: 'Inscripción exitosa. Pago pendiente de verificación.',
+      paymentId: payment.id,
+      registrationId: registration.id,
+      status: 'pending'
+    });
+
+  } catch (error) {
+    console.error('Join tournament error:', error);
+    res.status(500).json({ error: 'Error al unirse al torneo' });
   }
 });
 
@@ -654,6 +776,58 @@ router.post('/hidden-finalized', authMiddleware, (req, res) => {
   res.json({ hidden: hiddenFinalizedTournaments });
 });
 
+// Función para actualizar automáticamente el estado de torneos finalizados
+async function updateFinishedTournaments() {
+  try {
+    const now = new Date();
+    
+    // Obtener todos los torneos activos que podrían haber finalizado
+    const activeTournaments = await prisma.tournament.findMany({
+      where: { isActive: true },
+      include: {
+        payments: {
+          where: { isActive: true }
+        },
+        registrations: true
+      }
+    });
+
+    const updatePromises = [];
+
+    for (const tournament of activeTournaments) {
+      const currentAmount = tournament.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+      const frontendState = getFrontendState({ 
+        ...tournament, 
+        currentAmount,
+        participantCount: tournament.registrations.length
+      }, now);
+
+      // Si el torneo está finalizado pero aún marcado como activo, actualizarlo
+      if (frontendState === "Finalizado" && tournament.isActive) {
+        updatePromises.push(
+          prisma.tournament.update({
+            where: { id: tournament.id },
+            data: { isActive: false }
+          })
+        );
+      }
+    }
+
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+      console.log(`Actualizados ${updatePromises.length} torneos finalizados`);
+    }
+  } catch (error) {
+    console.error('Error updating finished tournaments:', error);
+  }
+}
+
 router.getFrontendState = getFrontendState;
+
+// Ejecutar la función de actualización cada minuto
+setInterval(updateFinishedTournaments, 60000); // 60,000 ms = 1 minuto
+
+// Ejecutar inmediatamente al iniciar el servidor
+updateFinishedTournaments().catch(console.error);
 
 module.exports = router;

@@ -212,7 +212,7 @@ const Tournaments = () => {
                   3
                 </div>
                 <div className="text-foreground font-medium">¡Domina!</div>
-                <div className="text-muted-foreground">Gana premios reales</div>
+                <div className="text-muted-foreground">Gana premios reales al instante</div>
               </div>
             </div>
           </div>

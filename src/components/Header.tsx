@@ -11,6 +11,7 @@ const Header = () => {
   const { isAuthenticated, user, logout } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate(); // Hook para navegación programática
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -26,6 +27,9 @@ const Header = () => {
 
   // Función para manejar navegación a secciones
   const handleSectionNavigation = (sectionId: string) => {
+    // Cerrar el menú móvil al navegar
+    setIsMenuOpen(false);
+
     if (window.location.pathname === "/") {
       // Si ya estamos en la página principal, hacer scroll
       const element = document.getElementById(sectionId);
@@ -45,7 +49,7 @@ const Header = () => {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border cyber-border">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border cyber-border header-mobile">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <Link to="/" className="flex items-center space-x-2">
@@ -57,7 +61,15 @@ const Header = () => {
           </Link>
         </div>
 
-        <nav className="hidden md:flex items-center space-x-6">
+        <div className="md:hidden">
+          <button className={`mobile-menu-btn ${isMenuOpen ? 'open' : ''}`} onClick={() => setIsMenuOpen(!isMenuOpen)}>
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+        </div>
+
+        <nav className={isMenuOpen ? 'mobile-open' : ''}>
           <button
             onClick={() => handleSectionNavigation("tournaments")}
             className="text-foreground hover:text-neon-blue transition-colors"
@@ -79,11 +91,19 @@ const Header = () => {
           {isAuthenticated && (
             <>
               {user?.isAdmin ? (
-                <Link to="/admin" className="text-foreground hover:text-cyber-green transition-colors">
+                <Link
+                  to="/admin"
+                  className="text-foreground hover:text-cyber-green transition-colors"
+                  onClick={() => setIsMenuOpen(false)}
+                >
                   Admin
                 </Link>
               ) : (
-                <Link to="/profile" className="text-foreground hover:text-neon-blue transition-colors">
+                <Link
+                  to="/profile"
+                  className="text-foreground hover:text-neon-blue transition-colors"
+                  onClick={() => setIsMenuOpen(false)}
+                >
                   Mi Perfil
                 </Link>
               )}

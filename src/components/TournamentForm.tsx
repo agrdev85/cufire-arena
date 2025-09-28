@@ -62,34 +62,38 @@ const TournamentForm = ({ tournament, onSave }: TournamentFormProps) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="admin-form">
       <div>
         <label className="text-sm font-medium">Nombre</label>
         <Input
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           required
+          className="w-full"
         />
       </div>
-      
+
       <div>
         <label className="text-sm font-medium">Descripción</label>
         <Textarea
           value={formData.description}
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          className="w-full resize-none"
+          rows={2}
         />
       </div>
       
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="text-sm font-medium">Jugadores máximos</label>
           <Input
             type="number"
             value={formData.maxPlayers}
             onChange={(e) => setFormData({ ...formData, maxPlayers: e.target.value })}
+            className="w-full"
           />
         </div>
-        
+
         <div>
           <label className="text-sm font-medium">Meta USDT</label>
           <Input
@@ -97,11 +101,12 @@ const TournamentForm = ({ tournament, onSave }: TournamentFormProps) => {
             step="0.01"
             value={formData.maxAmount}
             onChange={(e) => setFormData({ ...formData, maxAmount: e.target.value })}
+            className="w-full"
           />
         </div>
       </div>
       
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="text-sm font-medium">Inscripción (USDT)</label>
           <Input
@@ -110,9 +115,10 @@ const TournamentForm = ({ tournament, onSave }: TournamentFormProps) => {
             value={formData.registrationFee}
             onChange={(e) => setFormData({ ...formData, registrationFee: parseFloat(e.target.value) })}
             required
+            className="w-full"
           />
         </div>
-        
+
         <div>
           <label className="text-sm font-medium">% Premio</label>
           <Input
@@ -122,21 +128,23 @@ const TournamentForm = ({ tournament, onSave }: TournamentFormProps) => {
             value={formData.prizePercentage}
             onChange={(e) => setFormData({ ...formData, prizePercentage: parseInt(e.target.value) })}
             required
+            className="w-full"
           />
         </div>
       </div>
-      
+
       <div>
         <label className="text-sm font-medium">Duración (minutos)</label>
         <Input
           type="number"
           value={formData.duration}
           onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
+          className="w-full"
         />
       </div>
       
-      <div className="flex justify-end space-x-2">
-        <Button type="submit">
+      <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:space-x-2">
+        <Button type="submit" className="w-full sm:w-auto">
           {tournament ? 'Actualizar' : 'Crear'}
         </Button>
       </div>

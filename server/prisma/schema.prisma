@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["filterJson"]
 }
 
 datasource db {
@@ -26,6 +25,8 @@ model User {
   tournaments  TournamentRegistration[]
   
   @@map("users")
+  @@index([isAdmin])
+  @@index([createdAt])
 }
 
 model Tournament {
@@ -41,7 +42,7 @@ model Tournament {
   endDate         DateTime? @db.Timestamp(6)
   duration        Int?      // minutos
   isActive        Boolean   @default(true)
-  hiddenFinalized Boolean   @default(false) // NUEVO: ocultar torneo finalizado global
+  hiddenFinalized Boolean   @default(false)
   createdAt       DateTime  @default(now()) @db.Timestamp(6)
   updatedAt       DateTime  @updatedAt @db.Timestamp(6)
   
@@ -51,6 +52,11 @@ model Tournament {
   scores          Score[]
   
   @@map("tournaments")
+  @@index([isActive])
+  @@index([startDate])
+  @@index([isActive, startDate])
+  @@index([maxAmount])
+  @@index([createdAt])
 }
 
 model TournamentRegistration {
@@ -65,6 +71,10 @@ model TournamentRegistration {
   
   @@unique([userId, tournamentId])
   @@map("tournament_registrations")
+  @@index([userId])
+  @@index([tournamentId])
+  @@index([userId, tournamentId])
+  @@index([registeredAt])
 }
 
 model Payment {
@@ -73,7 +83,7 @@ model Payment {
   tournamentId  Int
   txHash        String    @db.VarChar(255)
   amount        Decimal   @db.Decimal(10, 2)
-  isActive      Boolean   @default(false) // false=pending, true=verified
+  isActive      Boolean   @default(false)
   createdAt     DateTime  @default(now()) @db.Timestamp(6)
   
   // Relaciones
@@ -81,19 +91,37 @@ model Payment {
   tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   
   @@map("payments")
+  @@index([userId])
+  @@index([tournamentId])
+  @@index([isActive])
+  @@index([createdAt])
+  @@index([txHash])
 }
 
 model Score {
   id            Int       @id @default(autoincrement())
   userId        Int
-  tournamentId  Int
+  tournamentId  Int?
   value         Int
   mode          String    @db.VarChar(50)
   createdAt     DateTime  @default(now()) @db.Timestamp(6)
-  
+
   // Relaciones
   user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  
+  tournament    Tournament? @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
   @@map("scores")
+  @@index([userId])
+  @@index([tournamentId])
+  @@index([value])
+  @@index([createdAt])
+}
+
+model UserSubscription {
+  telegramUserId   BigInt    @id
+  subscribed       Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @db.Timestamp(6)
+  lastNotification DateTime? @db.Timestamp(6)
+
+  @@map("user_subscriptions")
 }

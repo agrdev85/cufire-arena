@@ -428,7 +428,7 @@ const Admin = () => {
           </TabsList>
 
           <TabsContent value="payments" className="space-y-6">
-            <Card>
+            <Card className="admin-card">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -486,7 +486,7 @@ const Admin = () => {
                           <TableCell className="font-bold">${payment.amount} USDT</TableCell>
                           <TableCell>
                             <code className="text-xs bg-muted px-2 py-1 rounded">
-                              {payment.txHash.substring(0, 34)}...
+                              {payment.txHash.substring(0, 150)}...
                             </code>
                           </TableCell>
                           <TableCell>
@@ -540,7 +540,7 @@ const Admin = () => {
                           Crear Torneo
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
+                      <DialogContent className="max-w-2xl admin-dialog">
                         <DialogHeader>
                           <DialogTitle>
                             {editingTournament ? 'Editar Torneo' : 'Crear Torneo'}
@@ -666,7 +666,7 @@ const Admin = () => {
                           Crear Usuario
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
+                      <DialogContent className="max-w-2xl admin-dialog">
                         <DialogHeader>
                           <DialogTitle>
                             {editingUser ? 'Editar Usuario' : 'Crear Usuario'}
