@@ -504,7 +504,19 @@ router.post('/:id/distribute', authMiddleware, async (req, res) => {
         where: { id: tournamentId },
         data: { isActive: false }
       });
-      
+
+      // Incrementar gamesWon para el ganador (1er lugar)
+      if (prizes.length > 0 && prizes[0].userId) {
+        await tx.user.update({
+          where: { id: prizes[0].userId },
+          data: {
+            gamesWon: {
+              increment: 1
+            }
+          }
+        });
+      }
+
       // Opcional: también puedes marcar los registros como inactivos si lo deseas
       // await tx.tournamentRegistration.updateMany({
       //   where: { tournamentId },
@@ -745,6 +757,15 @@ router.post('/:id/join', authMiddleware, async (req, res) => {
         data: {
           userId,
           tournamentId
+        }
+      }),
+      // Incrementar gamesPlayed del usuario
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          gamesPlayed: {
+            increment: 1
+          }
         }
       })
     ]);

@@ -4,12 +4,12 @@ const API_BASE_URL = "http://localhost:4000/api";
 
 interface AuthResponse {
   token: string;
-  user: any;
+  user: Record<string, unknown>;
 }
 
 interface ApiError extends Error {
   status?: number;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 class ApiClient {
@@ -176,14 +176,14 @@ class ApiClient {
       return this.request(`/tournaments/${id}`);
     }
 
-    async createTournament(tournament: any) {
+    async createTournament(tournament: Record<string, unknown>) {
       return this.request('/tournaments', {
         method: 'POST',
         body: JSON.stringify(tournament)
       });
     }
 
-    async updateTournament(id: string, tournament: any) {
+    async updateTournament(id: string, tournament: Record<string, unknown>) {
       return this.request(`/tournaments/${id}`, {
         method: 'PUT',
         body: JSON.stringify(tournament)
@@ -222,14 +222,14 @@ class ApiClient {
       return this.request(endpoint, options);
     }
 
-    async createUser(user: any) {
+    async createUser(user: Record<string, unknown>) {
       return this.request('/users', {
         method: 'POST',
         body: JSON.stringify(user)
       });
     }
 
-    async updateUser(id: string, user: any) {
+    async updateUser(id: string, user: Record<string, unknown>) {
       return this.request(`/users/${id}`, {
         method: 'PUT',
         body: JSON.stringify(user)
@@ -278,6 +278,18 @@ class ApiClient {
     // Additional methods
     async hasActiveRegistration() {
       return this.request('/tournaments/active-registration');
+    }
+
+    // Testimonials methods
+    async getTestimonials() {
+      return this.request('/testimonials');
+    }
+
+    async submitTestimonial(text: string) {
+      return this.request('/testimonials', {
+        method: 'POST',
+        body: JSON.stringify({ text })
+      });
     }
 
     // Backwards-compatible helper

@@ -23,6 +23,7 @@ model User {
   scores       Score[]
   payments     Payment[]
   tournaments  TournamentRegistration[]
+  testimonials UserTestimonial[]
   
   @@map("users")
   @@index([isAdmin])
@@ -124,4 +125,21 @@ model UserSubscription {
   lastNotification DateTime? @db.Timestamp(6)
 
   @@map("user_subscriptions")
+}
+
+model UserTestimonial {
+  id       Int      @id @default(autoincrement())
+  userId   Int
+  text     String   @db.Text
+  date     DateTime @default(now()) @db.Date
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+
+  // Relaciones
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("user_testimonials")
+  @@index([userId])
+  @@index([date])
+  @@index([createdAt])
 }

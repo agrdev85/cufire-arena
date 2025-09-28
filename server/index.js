@@ -55,6 +55,7 @@ app.use('/api/payments', require('./routes/payments'));
 app.use('/api/scores', require('./routes/scores'));
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/testimonials', require('./routes/testimonials'));
 
 // Unity Routes
 app.use('/unity', require('./routes/unity'));

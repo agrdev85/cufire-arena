@@ -5,6 +5,7 @@ import { AuthModal } from "./AuthModal";
 import { useAuth } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useNavigate } from "react-router-dom"; // Importar Link y useNavigate
+import TestimonialsWidget from "./TestimonialsWidget";
 
 const Header = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -88,6 +89,13 @@ const Header = () => {
           >
             Premios
           </button>
+          <TestimonialsWidget
+            trigger={
+              <button className="text-foreground hover:text-cyber-gold transition-colors">
+                Opiniones
+              </button>
+            }
+          />
           {isAuthenticated && (
             <>
               {user?.isAdmin ? (
