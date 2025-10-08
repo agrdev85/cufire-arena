@@ -4,6 +4,8 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:4000',
   'https://cufire-arena.vercel.app',
+  'https://cufire-arena-frontend.onrender.com/',
+  'https://cufire-arena.onrender.com/',
   'https://*.vercel.app'
 ];
 
