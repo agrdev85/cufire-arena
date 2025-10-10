@@ -22,7 +22,7 @@ const getAllowedOrigins = () => {
   if (process.env.NODE_ENV === 'production') {
     return productionOrigins;
   } else {
-    return [...productionOrigins, ...developmentOrigins];
+    return developmentOrigins;
   }
 };
 
@@ -53,8 +53,10 @@ const corsOptions = {
     'Authorization', 
     'X-Requested-With',
     'Accept',
-    'Origin'
-  ],
+    'Origin',
+    'cache-control',
+    'Cache-Control'
+],
   optionsSuccessStatus: 200
 };
 

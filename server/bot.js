@@ -676,5 +676,42 @@ bot.on('polling_error', (err) => {
     console.error('❌ Error de polling:', err);
 });
 
+// 🔥 INICIAR BOT
+if (process.env.NODE_ENV === 'development') {
+  // Usar polling para desarrollo local
+  console.log('🚀 Iniciando bot en modo polling (desarrollo)...');
+  bot.launch()
+    .then(() => {
+      console.log('✅ BOT INICIADO EN MODO POLLING');
+      console.log('🤖 Bot username: @' + bot.botInfo.username);
+    })
+    .catch((error) => {
+      console.error('❌ ERROR al iniciar bot en polling:', error);
+    });
+} else {
+  // Usar webhooks para producción
+  console.log('🚀 Configurando webhook...');
+  const webhookUrl = `${process.env.SERVER_API_URL}/telegram-webhook`;
+  bot.telegram.setWebhook(webhookUrl)
+    .then(() => {
+      console.log('✅ WEBHOOK CONFIGURADO CORRECTAMENTE');
+      console.log('🤖 Bot username: @' + bot.botInfo.username);
+      console.log('📱 Webhook listo en:', webhookUrl);
+    })
+    .catch((error) => {
+      console.error('❌ ERROR al configurar webhook:', error);
+    });
+}
+
+// Apagado graceful (igual)
+process.once('SIGINT', () => {
+  console.log('🛑 Apagando bot...');
+  bot.stop('SIGINT');
+});
+process.once('SIGTERM', () => {
+  console.log('🛑 Apagando bot...');
+  bot.stop('SIGTERM');
+});
+
 // Exportar la instancia del bot
 module.exports = bot;
