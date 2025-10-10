@@ -5,7 +5,7 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 // Initialize Telegram bot
-require('./bot');
+const bot = require('./bot');
 
 const { corsOptions } = require('./cors-config'); // Importar configuración CORS
 
@@ -43,9 +43,6 @@ const limiter = rateLimit({
   legacyHeaders: false
 });
 app.use('/api/', limiter);
-
-const { Telegraf } = require('telegraf');
-const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

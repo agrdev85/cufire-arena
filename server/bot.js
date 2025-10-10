@@ -676,27 +676,5 @@ bot.on('polling_error', (err) => {
     console.error('❌ Error de polling:', err);
 });
 
-// 🔥 INICIAR BOT CON CONFIRMACIÓN (cambiar a webhooks)
-console.log('🚀 Configurando webhook...');
-
-const webhookUrl = `${process.env.SERVER_API_URL}/telegram-webhook`; // Usa la URL de tu backend desplegado
-
-bot.telegram.setWebhook(webhookUrl)
-  .then(() => {
-    console.log('✅ WEBHOOK CONFIGURADO CORRECTAMENTE');
-    console.log('🤖 Bot username: @' + bot.botInfo.username);
-    console.log('📱 Webhook listo en:', webhookUrl);
-  })
-  .catch((error) => {
-    console.error('❌ ERROR al configurar webhook:', error);
-  });
-
-// Apagado graceful (igual)
-process.once('SIGINT', () => {
-  console.log('🛑 Apagando bot...');
-  bot.stop('SIGINT');
-});
-process.once('SIGTERM', () => {
-  console.log('🛑 Apagando bot...');
-  bot.stop('SIGTERM');
-});
+// Exportar la instancia del bot
+module.exports = bot;
