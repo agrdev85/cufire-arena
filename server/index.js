@@ -44,6 +44,9 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
+const { Telegraf } = require('telegraf');
+const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -68,6 +71,12 @@ app.get('/api/health', (req, res) => {
     cors: 'enabled',
     allowedOrigins: corsOptions.allowedOrigins || 'Custom origin function'
   });
+});
+
+// Endpoint para webhooks
+app.post('/telegram-webhook', (req, res) => {
+  bot.handleUpdate(req.body);
+  res.sendStatus(200);
 });
 
 // Error handling middleware
