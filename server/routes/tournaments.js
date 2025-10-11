@@ -77,6 +77,7 @@ function getFrontendState(tournament, now = new Date()) {
 
 // NUEVO: GET - Obtener lista de IDs de torneos finalizados ocultos desde DB
 router.get('/hidden-finalized', async (req, res) => {
+  console.log('GET /hidden-finalized called');
   try {
     // Primero obtenemos todos los torneos para calcular su estado
     const allTournaments = await prisma.tournament.findMany({
@@ -86,15 +87,17 @@ router.get('/hidden-finalized', async (req, res) => {
         }
       }
     });
+    console.log('Found tournaments:', allTournaments.length);
 
     const now = new Date();
-    
+
     // Filtramos los torneos que están finalizados según nuestra lógica
     const finalizedTournaments = allTournaments.filter(tournament => {
       const currentAmount = tournament.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
       const state = getFrontendState({ ...tournament, currentAmount }, now);
       return state === "Finalizado" && tournament.hiddenFinalized;
     });
+    console.log('Finalized hidden tournaments:', finalizedTournaments.length);
 
     res.json({ hidden: finalizedTournaments.map(t => t.id) });
   } catch (error) {
@@ -783,19 +786,6 @@ router.post('/:id/join', authMiddleware, async (req, res) => {
   }
 });
 
-// GET - Obtener lista global de torneos finalizados ocultos
-router.get('/hidden-finalized', (req, res) => {
-  res.json({ hidden: hiddenFinalizedTournaments });
-});
-
-// POST - Actualizar lista global (solo admin)
-router.post('/hidden-finalized', authMiddleware, (req, res) => {
-  if (!req.user.isAdmin) return res.status(403).json({ error: 'Solo admin' });
-  const { hidden } = req.body;
-  if (!Array.isArray(hidden)) return res.status(400).json({ error: 'Formato inválido' });
-  hiddenFinalizedTournaments = hidden;
-  res.json({ hidden: hiddenFinalizedTournaments });
-});
 
 // Función para actualizar automáticamente el estado de torneos finalizados
 async function updateFinishedTournaments() {
