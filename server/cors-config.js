@@ -1,7 +1,6 @@
 // Configuración mejorada con variables de entorno
 const productionOrigins = [
   'https://cufire-arena-frontend.onrender.com',
-  'https://cufire-arena.onrender.com',
   'https://cufire-arena.vercel.app',
   'https://cufire-arena-frontend.vercel.app',
   'https://*.vercel.app',

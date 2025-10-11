@@ -84,6 +84,7 @@ const Admin = () => {
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
   // Tournament details modal
   const [detailsTournamentId, setDetailsTournamentId] = useState<number | null>(null);
   // Switch global para ocultar torneos finalizados
@@ -122,11 +123,16 @@ const Admin = () => {
   const fetchData = useCallback(async (isPolling = false) => {
     if (!isAuthenticated || !user?.isAdmin) return;
 
+    // Si ya está cargando, no hacer otra llamada
+    if (isFetching) return;
+
     // Si es una llamada de polling y hay una búsqueda activa, no hacer la llamada
     if (isPolling && (paymentSearch || userSearch)) return;
 
-    let abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 5000); // 5 segundos timeout
+    setIsFetching(true);
+
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 15000); // 15 segundos timeout
 
     try {
       if (!isPolling) setLoading(true);
@@ -171,6 +177,7 @@ const Admin = () => {
       });
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
   }, [isAuthenticated, user, paymentStatus, paymentSearch, userSearch, toast]);
 
