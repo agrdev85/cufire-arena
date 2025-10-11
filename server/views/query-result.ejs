@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Query Result</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 10px; background: #f4f4f4; font-size: 14px; }
+    .container { max-width: 100%; overflow-x: auto; }
+    h1 { color: #333; font-size: 20px; margin-bottom: 15px; }
+    table { width: 100%; min-width: 600px; border-collapse: collapse; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 6px; overflow: hidden; }
+    th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: #007bff; color: white; font-weight: bold; }
+    tr:hover { background: #f1f1f1; }
+    p { color: #d9534f; font-size: 14px; }
+    a { color: #007bff; text-decoration: none; padding: 8px 12px; border: 1px solid #007bff; border-radius: 3px; display: inline-block; margin: 8px 3px; font-size: 14px; }
+    a:hover { background: #007bff; color: white; }
+    @media (max-width: 768px) { body { padding: 5px; } th, td { padding: 6px; font-size: 12px; } h1 { font-size: 18px; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Query Result</h1>
+    <% if (result && result.length > 0) { %>
+      <table>
+      <thead>
+        <tr>
+          <% Object.keys(result[0]).forEach(k => { %>
+            <th><%= k %></th>
+          <% }); %>
+        </tr>
+      </thead>
+      <tbody>
+        <% result.forEach(r => { %>
+          <tr>
+            <% Object.values(r).forEach(v => { %>
+              <td><%= v %></td>
+            <% }); %>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } else if (result) { %>
+    <p>No results.</p>
+  <% } %>
+  <% if (error) { %>
+    <p>Error: <%= error %></p>
+  <% } %>
+    <a href="/admin/query">Execute Another Query</a>
+    <a href="/admin/dashboard">Back to Dashboard</a>
+  </div>
+</body>
+</html>

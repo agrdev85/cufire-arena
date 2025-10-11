@@ -28,10 +28,15 @@ const getAllowedOrigins = () => {
 
 const corsOptions = {
   origin: function (origin, callback) {
+    // Allow all in development
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+
     const allowedOrigins = getAllowedOrigins();
-    
-    if (!origin) return callback(null, true);
-    
+
+    if (!origin || origin === 'null') return callback(null, true);
+
     if (allowedOrigins.some(allowedOrigin => {
       if (allowedOrigin.includes('*')) {
         const domain = allowedOrigin.replace('*.', '');
@@ -49,14 +54,14 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
+    'Content-Type',
+    'Authorization',
     'X-Requested-With',
     'Accept',
     'Origin',
     'cache-control',
     'Cache-Control'
-],
+  ],
   optionsSuccessStatus: 200
 };
 

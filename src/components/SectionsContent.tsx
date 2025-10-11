@@ -99,7 +99,7 @@ const sectionContent: SectionContent = {
         },
         {
           title: "Comisiones",
-          content: "Sin comisiones por depósitos. Retiros con 1% comisión. Transparente sin sorpresas."
+          content: "Sin comisiones por depósitos. Retiros con 0% comisión. Transparente sin sorpresas."
         }
       ]
     },

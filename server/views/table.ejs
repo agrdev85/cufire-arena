@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Table: <%= tableName %></title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 10px; background: #f4f4f4; font-size: 14px; }
+    .container { max-width: 100%; overflow-x: auto; }
+    h1 { color: #333; font-size: 20px; margin-bottom: 15px; }
+    table { width: 100%; min-width: 600px; border-collapse: collapse; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 6px; overflow: hidden; }
+    th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: #007bff; color: white; font-weight: bold; cursor: pointer; }
+    tr:hover { background: #f1f1f1; }
+    a { color: #007bff; text-decoration: none; padding: 4px 8px; border: 1px solid #007bff; border-radius: 3px; font-size: 12px; }
+    a:hover { background: #007bff; color: white; }
+    button { background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+    button:hover { background: #c82333; }
+    .back-link { display: inline-block; margin-top: 15px; font-size: 14px; }
+    #search-container { margin-bottom: 15px; }
+    #search-container input { margin: 5px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 150px; }
+    @media (max-width: 768px) { body { padding: 5px; } th, td { padding: 6px; font-size: 12px; } h1 { font-size: 18px; } }
+  </style>
+</head>
+<body>
+  <script>
+    console.log('Script loaded successfully');
+    let sortDirection = {};
+
+    function filterTable() {
+      const generalFilter = document.getElementById('general-search').value.toLowerCase();
+      const dateFilter = document.getElementById('date-search') ? document.getElementById('date-search').value : '';
+      const table = document.getElementById('data-table');
+      const rows = table.querySelectorAll('tbody tr');
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        let show = true;
+        if (generalFilter) {
+          show = false;
+          cells.forEach((cell, index) => {
+            if (index < cells.length - 1) {
+              const text = cell.textContent.toLowerCase();
+              if (text.includes(generalFilter)) {
+                show = true;
+              }
+            }
+          });
+        }
+        if (show && dateFilter) {
+          show = false;
+          cells.forEach((cell, index) => {
+            if (index < cells.length - 1) {
+              const text = cell.textContent;
+              if (text.includes(dateFilter)) {
+                show = true;
+              }
+            }
+          });
+        }
+        row.style.display = show ? '' : 'none';
+      });
+    }
+
+    function sortTable(colIndex) {
+      const table = document.getElementById('data-table');
+      const tbody = table.querySelector('tbody');
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
+      const dir = sortDirection[colIndex] = !sortDirection[colIndex];
+      rows.sort((a, b) => {
+        const aVal = a.cells[colIndex].textContent.trim();
+        const bVal = b.cells[colIndex].textContent.trim();
+        const aNum = parseFloat(aVal);
+        const bNum = parseFloat(bVal);
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return dir ? aNum - bNum : bNum - aNum;
+        } else {
+          return dir ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        }
+      });
+      rows.forEach(row => tbody.appendChild(row));
+    }
+  </script>
+  <div class="container">
+    <h1>Table: <%= tableName %></h1>
+    <div id="search-container">
+      <input type="text" id="general-search" placeholder="Search all fields" onkeyup="filterTable()" style="margin: 5px; padding: 8px; width: 200px; border: 1px solid #ccc; border-radius: 4px;">
+      <% const dateColumns = columns.filter(c => c.column_name.toLowerCase().includes('date') || c.column_name.toLowerCase().includes('at')); %>
+      <% if (dateColumns.length > 0) { %>
+        <input type="date" id="date-search" onchange="filterTable()" style="margin: 5px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+      <% } %>
+    </div>
+    <table id="data-table">
+      <thead>
+        <tr>
+          <% columns.forEach(c => { %>
+            <th onclick="sortTable(<%= columns.indexOf(c) %>)"><%= c.column_name %> &#8597;</th>
+          <% }); %>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(r => { %>
+          <tr>
+            <% Object.values(r).forEach(v => { %>
+              <td><%= v %></td>
+            <% }); %>
+            <td>
+              <a href="/admin/table/<%= tableName %>/edit/<%= r.id %>">Edit</a>
+              <button onclick="if(confirm('Are you sure you want to delete this row?')) { document.getElementById('delete-form-<%= r.id %>').submit(); }">Delete</button>
+              <form id="delete-form-<%= r.id %>" method="post" action="/admin/table/<%= tableName %>/delete/<%= r.id %>" style="display:none;"></form>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <a href="/admin/dashboard" class="back-link">Back to Dashboard</a>
+  </div>
+</body>
+</html>

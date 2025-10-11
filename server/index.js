@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -19,7 +20,13 @@ const PORT = process.env.PORT || 4000;
 
 // Security middleware
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: {
+    directives: {
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrcAttr: ["'unsafe-inline'"]
+    }
+  }
 }));
 
 // CORS configuration - DEFINITIVA
@@ -55,6 +62,11 @@ app.use('/api/payments', require('./routes/payments'));
 app.use('/api/scores', require('./routes/scores'));
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/users', userRoutes);
+// Admin interface
+const adminApp = require('./admin');
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+app.use('/admin', adminApp);
 app.use('/api/testimonials', require('./routes/testimonials'));
 
 // Unity Routes

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 10px; background: #f4f4f4; font-size: 14px; }
+    .container { max-width: 600px; margin: 0 auto; background: white; padding: 15px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    h1, h2 { color: #333; margin-bottom: 15px; font-size: 18px; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 8px 0; }
+    a { color: #007bff; text-decoration: none; padding: 8px 12px; border: 1px solid #007bff; border-radius: 3px; display: inline-block; margin: 3px; font-size: 14px; }
+    a:hover { background: #007bff; color: white; }
+    @media (max-width: 768px) { .container { padding: 10px; } h1, h2 { font-size: 16px; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Dashboard</h1>
+    <h2>Tables</h2>
+    <ul>
+      <% tables.forEach(t => { %>
+        <li><a href="/admin/table/<%= t.tablename %>"><%= t.tablename %></a></li>
+      <% }); %>
+    </ul>
+    <a href="/admin/create-table">Create Table</a>
+    <a href="/admin/query">Execute Query</a>
+  </div>
+</body>
+</html>
