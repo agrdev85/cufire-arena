@@ -1,5 +1,5 @@
 import Header from "@/components/Header";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import TournamentDetails from "@/components/TournamentDetails";
 import { Switch } from "@/components/ui/switch";
@@ -64,7 +64,7 @@ interface User {
   updatedAt: string;
 }
 
-const Admin = () => {
+export default function Admin() {
   const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -84,6 +84,7 @@ const Admin = () => {
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const isFetchingRef = useRef(false);
   // Tournament details modal
   const [detailsTournamentId, setDetailsTournamentId] = useState<number | null>(null);
   // Switch global para ocultar torneos finalizados
@@ -125,7 +126,11 @@ const Admin = () => {
     // Si es una llamada de polling y hay una búsqueda activa, no hacer la llamada
     if (isPolling && (paymentSearch || userSearch)) return;
 
-    let abortController = new AbortController();
+    // Prevenir llamadas concurrentes
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
+    const abortController = new AbortController();
     const timeoutId = setTimeout(() => abortController.abort(), 5000); // 5 segundos timeout
 
     try {
@@ -171,12 +176,14 @@ const Admin = () => {
       });
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   }, [isAuthenticated, user, paymentStatus, paymentSearch, userSearch, toast]);
 
   // Estado para controlar la última actualización
   const [lastUpdate, setLastUpdate] = useState<number>(0);
   const THROTTLE_TIME = 2000; // 2 segundos entre actualizaciones
+  const isProduction = process.env.NODE_ENV === 'production';
 
   // Effect para autenticación y redireccionamiento
   useEffect(() => {
@@ -212,9 +219,9 @@ const Admin = () => {
     };
   }, [paymentStatus, paymentSearch, userSearch, isAuthenticated, user, lastUpdate, fetchData]);
 
-  // Effect separado para polling con intervalo largo
+  // Effect separado para polling con intervalo largo (deshabilitado en producción)
   useEffect(() => {
-    if (!isAuthenticated || !user?.isAdmin) return;
+    if (!isAuthenticated || !user?.isAdmin || isProduction) return;
 
     // Solo hacer polling si no hay búsquedas activas
     if (paymentSearch || userSearch) return;
@@ -228,7 +235,7 @@ const Admin = () => {
     }, 60000); // 1 minuto
 
     return () => clearInterval(pollingInterval);
-  }, [isAuthenticated, user, paymentSearch, userSearch, lastUpdate, fetchData]);
+  }, [isAuthenticated, user, paymentSearch, userSearch, lastUpdate, fetchData, isProduction]);
 
   const handleVerifyPayment = async (paymentId: number) => {
     try {
@@ -837,5 +844,3 @@ const Admin = () => {
     </div>
   );
 };
-
-export default Admin;
