@@ -180,10 +180,7 @@ export default function Admin() {
     }
   }, [isAuthenticated, user, paymentStatus, paymentSearch, userSearch, toast]);
 
-  // Estado para controlar la última actualización
-  const [lastUpdate, setLastUpdate] = useState<number>(0);
-  const THROTTLE_TIME = 2000; // 2 segundos entre actualizaciones
-  const isProduction = process.env.NODE_ENV === 'production';
+  // Variables de control eliminadas - no se usan más
 
   // Effect para autenticación y redireccionamiento
   useEffect(() => {
@@ -192,50 +189,12 @@ export default function Admin() {
     }
   }, [isAuthenticated, user]);
 
-  // Effect unificado para manejo de datos
+  // Effect para carga inicial de datos (solo una vez)
   useEffect(() => {
-    const now = Date.now();
-    if (now - lastUpdate < THROTTLE_TIME) {
-      return; // Evitar actualizaciones muy frecuentes
-    }
+    fetchData(false);
+  }, []); // Solo ejecutar una vez al montar
 
-    // Función para manejar la actualización
-    const handleUpdate = async () => {
-      if (!isAuthenticated || !user?.isAdmin) return;
-
-      try {
-        setLastUpdate(now);
-        await fetchData(false);
-      } catch (error) {
-        console.error('Error en actualización:', error);
-      }
-    };
-
-    // Configurar debounce para búsquedas
-    const debounceTimer = setTimeout(handleUpdate, 800);
-
-    return () => {
-      clearTimeout(debounceTimer);
-    };
-  }, [paymentStatus, paymentSearch, userSearch, isAuthenticated, user, lastUpdate, fetchData]);
-
-  // Effect separado para polling con intervalo largo (deshabilitado en producción)
-  useEffect(() => {
-    if (!isAuthenticated || !user?.isAdmin || isProduction) return;
-
-    // Solo hacer polling si no hay búsquedas activas
-    if (paymentSearch || userSearch) return;
-
-    const pollingInterval = setInterval(() => {
-      const now = Date.now();
-      if (now - lastUpdate >= THROTTLE_TIME) {
-        fetchData(true);
-        setLastUpdate(now);
-      }
-    }, 60000); // 1 minuto
-
-    return () => clearInterval(pollingInterval);
-  }, [isAuthenticated, user, paymentSearch, userSearch, lastUpdate, fetchData, isProduction]);
+  // Polling completamente deshabilitado para evitar llamadas excesivas
 
   const handleVerifyPayment = async (paymentId: number) => {
     try {
@@ -244,7 +203,8 @@ export default function Admin() {
         title: "Pago verificado",
         description: "El pago ha sido verificado exitosamente",
       });
-      fetchData();
+      // Recargar datos después de verificar pago
+      await fetchData();
     } catch (error) {
       toast({
         title: "Error",
@@ -261,7 +221,8 @@ export default function Admin() {
         title: "Premios distribuidos",
         description: `Se han calculado los premios para ${result.prizes?.length || 0} jugadores`,
       });
-      fetchData();
+      // Recargar datos después de distribuir premios
+      await fetchData();
     } catch (error) {
       toast({
         title: "Error",
@@ -280,7 +241,8 @@ export default function Admin() {
         title: "Torneo eliminado",
         description: "El torneo se ha eliminado correctamente"
       });
-      fetchData();
+      // Recargar datos después de eliminar torneo
+      await fetchData();
     } catch (error) {
       console.error('Delete tournament error:', error);
       toast({
@@ -300,7 +262,8 @@ export default function Admin() {
         title: "Usuario eliminado",
         description: "El usuario se ha eliminado correctamente"
       });
-      fetchData();
+      // Recargar datos después de eliminar usuario
+      await fetchData();
     } catch (error) {
       console.error('Delete user error:', error);
       toast({
@@ -320,7 +283,8 @@ export default function Admin() {
         description: "El usuario se ha creado correctamente"
       });
       setUserDialog(false);
-      fetchData();
+      // Recargar datos después de crear usuario
+      await fetchData();
     } catch (error) {
       toast({
         title: "Error",
@@ -342,7 +306,8 @@ export default function Admin() {
       });
       setEditingUser(null);
       setUserDialog(false);
-      fetchData();
+      // Recargar datos después de actualizar usuario
+      await fetchData();
     } catch (error) {
       toast({
         title: "Error",
