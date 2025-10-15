@@ -46,9 +46,9 @@ const Footer = () => {
         return (
           <div>
             <h4 className="font-orbitron font-bold text-neon-blue text-sm mb-2">
-              {key === "fpsChampionships" ? "FPS Championships" :
-               key === "weeklyLeagues" ? "Weekly Leagues" :
-               key === "eliteMatches" ? "Elite Matches" : "Custom Events"}
+              {key === "fpsChampionships" ? "Campeonatos FPS" :
+               key === "weeklyLeagues" ? "Ligas Semanales" :
+               key === "eliteMatches" ? "Partidos de Élite" : "Eventos Personalizados"}
             </h4>
             <p className="text-xs text-muted-foreground leading-relaxed mb-3">
               {tournaments[key as keyof typeof tournaments]}
@@ -306,7 +306,7 @@ const Footer = () => {
         return (
           <div>
             <h4 className="font-orbitron font-bold text-neon-pink text-sm mb-2">
-              Fair Play
+              Juego Limpio
             </h4>
             <p className="text-xs text-muted-foreground leading-relaxed max-h-40 overflow-y-auto">
               {legal.fairPlay}
@@ -361,7 +361,7 @@ const Footer = () => {
                     onMouseEnter={(e) => handleMouseEnter(e, "fpsChampionships")}
                     onMouseLeave={handleMouseLeave}
                   >
-                    FPS Championships
+                    Campeonatos FPS
                   </a>
                 </li>
                 <li>
@@ -371,7 +371,7 @@ const Footer = () => {
                     onMouseEnter={(e) => handleMouseEnter(e, "weeklyLeagues")}
                     onMouseLeave={handleMouseLeave}
                   >
-                    Weekly Leagues
+                    Ligas Semanales
                   </a>
                 </li>
                 <li>
@@ -381,7 +381,7 @@ const Footer = () => {
                     onMouseEnter={(e) => handleMouseEnter(e, "eliteMatches")}
                     onMouseLeave={handleMouseLeave}
                   >
-                    Elite Matches
+                    Partidos de Élite
                   </a>
                 </li>
                 <li>
@@ -391,7 +391,7 @@ const Footer = () => {
                     onMouseEnter={(e) => handleMouseEnter(e, "customEvents")}
                     onMouseLeave={handleMouseLeave}
                   >
-                    Custom Events
+                    Eventos Personalizados
                   </a>
                 </li>
               </ul>
@@ -487,7 +487,7 @@ const Footer = () => {
                     onMouseEnter={(e) => handleMouseEnter(e, "fairPlay")}
                     onMouseLeave={handleMouseLeave}
                   >
-                    Fair Play
+                    Juego Limpio
                   </a>
                 </li>
               </ul>

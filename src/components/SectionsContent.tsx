@@ -35,7 +35,7 @@ const sectionContent: SectionContent = {
       faq: [
         {
           question: "¿Cómo crear una cuenta?",
-          answer: "Regístrate con tus datos incluye una wallet USDT (red TRC20), edita o elimina tu cuenta en tu perfil de jugador en caso que lo requieras siempre y cuando no estes inscrito en un Torneo."
+          answer: "Regístrate con tus datos incluye una wallet USDT (red BEP20), edita o elimina tu cuenta en tu perfil de jugador en caso que lo requieras siempre y cuando no estes inscrito en un Torneo."
         },
         {
           question: "¿Cómo unirme a un torneo?",
@@ -83,7 +83,7 @@ const sectionContent: SectionContent = {
       steps: [
         {
           title: "Depósitos",
-          content: "Envía USDT a tu wallet asignada en la plataforma (red TRC20). Las confirmaciones toman 2-5 minutos."
+          content: "Envía USDT a tu wallet asignada en la plataforma (red BEP20). Las confirmaciones toman 2-5 minutos."
         },
         {
           title: "Inscripciones",
@@ -91,7 +91,7 @@ const sectionContent: SectionContent = {
         },
         {
           title: "Premios",
-          content: "Los premios se acreditan automáticamente al finalizar el torneo tras verificación de resultados. Puedes ver los resultados en la tabla Top 10 de Premios seleccionando el torneo al cual te inscribist. Recibiras el pago a tu billetera USDT (red TRC20), el tiempo varía según la conexión (por lo general Las confirmaciones toman 2-5 minutos)."
+          content: "Los premios se acreditan automáticamente al finalizar el torneo tras verificación de resultados. Puedes ver los resultados en la tabla Top 10 de Premios seleccionando el torneo al cual te inscribist. Recibiras el pago a tu billetera USDT (red BEP20), el tiempo varía según la conexión (por lo general Las confirmaciones toman 2-5 minutos)."
         },
         {
           title: "Retiros",

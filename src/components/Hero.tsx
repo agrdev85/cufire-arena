@@ -40,7 +40,7 @@ const Hero = () => {
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
           <Button variant="cyber" size="lg" className="text-lg px-8 py-6">
             <Play className="h-5 w-5" />
-            Jugar Ahora
+            <a href="https://gamejolt.com/games/cufire/773519" target="_blank">Jugar Ahora</a> 
           </Button>
           <Button asChild variant="tournament" size="lg" className="text-lg px-8 py-6">
             <a href="#tournaments" aria-label="Ver torneos disponibles">

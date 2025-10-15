@@ -423,8 +423,8 @@ useEffect(() => {
                   <div className="space-y-2">
                     <Label>Envía {registrationFee} USDT a:</Label>
                     <div className="p-3 bg-muted/50 rounded">
-                      <div className="text-sm font-mono">TWsHMUL1ASws9McBsQZ65XGPj9syMg6Yr9</div>
-                      <div className="text-xs text-muted-foreground mt-1">Red: TRC20 (Tron)</div>
+                      <div className="text-sm font-mono">0x40b0c9F670d07f7439AE291E9De9b0Bd8CeD4e6e</div>
+                      <div className="text-xs text-muted-foreground mt-1">Red: BEP20 (BNB)</div>
                     </div>
                   </div>
                   
