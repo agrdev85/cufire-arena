@@ -801,7 +801,7 @@ router.post('/hidden-finalized', authMiddleware, (req, res) => {
 async function updateFinishedTournaments() {
   try {
     const now = new Date();
-    
+
     // Obtener todos los torneos activos que podrían haber finalizado
     const activeTournaments = await prisma.tournament.findMany({
       where: { isActive: true },
@@ -809,7 +809,14 @@ async function updateFinishedTournaments() {
         payments: {
           where: { isActive: true }
         },
-        registrations: true
+        registrations: true,
+        scores: {
+          include: {
+            user: true
+          },
+          orderBy: { value: 'desc' },
+          take: 1  // Solo necesitamos el primer lugar
+        }
       }
     });
 
@@ -817,8 +824,8 @@ async function updateFinishedTournaments() {
 
     for (const tournament of activeTournaments) {
       const currentAmount = tournament.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-      const frontendState = getFrontendState({ 
-        ...tournament, 
+      const frontendState = getFrontendState({
+        ...tournament,
         currentAmount,
         participantCount: tournament.registrations.length
       }, now);
@@ -831,12 +838,27 @@ async function updateFinishedTournaments() {
             data: { isActive: false }
           })
         );
+
+        // Incrementar gamesWon para el usuario en primer lugar si hay scores
+        if (tournament.scores.length > 0) {
+          const winner = tournament.scores[0];
+          updatePromises.push(
+            prisma.user.update({
+              where: { id: winner.userId },
+              data: {
+                gamesWon: {
+                  increment: 1
+                }
+              }
+            })
+          );
+        }
       }
     }
 
     if (updatePromises.length > 0) {
       await Promise.all(updatePromises);
-      console.log(`Actualizados ${updatePromises.length} torneos finalizados`);
+      console.log(`Actualizados ${updatePromises.length} torneos finalizados y gamesWon incrementados para ganadores`);
     }
   } catch (error) {
     console.error('Error updating finished tournaments:', error);
