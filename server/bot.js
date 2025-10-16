@@ -472,11 +472,11 @@ bot.command('ask', async (ctx) => {
     let predefinedAnswer = null;
 
     if (lowerQuestion.includes('cuenta') || lowerQuestion.includes('registro') || lowerQuestion.includes('crear')) {
-        predefinedAnswer = 'Regístrate con tus datos e incluye una wallet USDT (red TRC20). Puedes editar o eliminar tu cuenta en tu perfil, siempre que no estés inscrito en un torneo.';
+        predefinedAnswer = 'Regístrate con tus datos e incluye una wallet USDT (red BEP20). Puedes editar o eliminar tu cuenta en tu perfil, siempre que no estés inscrito en un torneo.';
     } else if (lowerQuestion.includes('unir') || lowerQuestion.includes('join') || lowerQuestion.includes('torneo')) {
         predefinedAnswer = 'Selecciona un torneo abierto, paga la tarifa de inscripción con USDT y espera la confirmación de pago.';
     } else if (lowerQuestion.includes('pago') || lowerQuestion.includes('deposito') || lowerQuestion.includes('usdt')) {
-        predefinedAnswer = 'Envía USDT a tu wallet asignada (red TRC20). Confirmaciones en 2-5 minutos. Sin comisiones por depósitos.';
+        predefinedAnswer = 'Envía USDT a tu wallet asignada (red BEP20). Confirmaciones en 2-5 minutos. Sin comisiones por depósitos.';
     } else if (lowerQuestion.includes('retiro') || lowerQuestion.includes('withdraw')) {
         predefinedAnswer = 'Retiros procesados tras finalizar torneo y verificación. Menos de 24 horas con 1% comisión.';
     } else if (lowerQuestion.includes('premio') || lowerQuestion.includes('prize') || lowerQuestion.includes('ganar')) {
