@@ -269,18 +269,39 @@ adminApp.post('/import', async (req, res) => {
     const data = JSON.parse(req.body.jsonData);
     // Define table import order to respect foreign key constraints
     const tableOrder = ['users', 'tournaments', 'tournament_registrations', 'payments', 'scores', 'user_subscriptions', 'user_testimonials'];
+
+    // Disable foreign key checks for the import process
+    if (req.session.dbType === 'postgresql') {
+      await db.raw('SET CONSTRAINTS ALL DEFERRED');
+    } else if (req.session.dbType === 'mysql') {
+      await db.raw('SET FOREIGN_KEY_CHECKS = 0');
+    } else if (req.session.dbType === 'sqlite') {
+      await db.raw('PRAGMA foreign_keys = OFF');
+    }
+
     // First, clear all tables in reverse order
-    for (const table of tableOrder.reverse()) {
+    for (const table of tableOrder.slice().reverse()) {
       if (data[table]) {
         await db(table).del();
       }
     }
+
     // Then insert data in correct order
     for (const table of tableOrder) {
       if (data[table] && data[table].length > 0) {
         await db(table).insert(data[table]);
       }
     }
+
+    // Re-enable foreign key checks
+    if (req.session.dbType === 'postgresql') {
+      await db.raw('SET CONSTRAINTS ALL IMMEDIATE');
+    } else if (req.session.dbType === 'mysql') {
+      await db.raw('SET FOREIGN_KEY_CHECKS = 1');
+    } else if (req.session.dbType === 'sqlite') {
+      await db.raw('PRAGMA foreign_keys = ON');
+    }
+
     res.send('Import successful. <a href="/admin/dashboard">Back to Dashboard</a>');
   } catch (error) {
     res.send(`Error: ${error.message}`);
