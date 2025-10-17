@@ -219,4 +219,66 @@ adminApp.post('/query', async (req, res) => {
   }
 });
 
+// Export database
+adminApp.get('/export', async (req, res) => {
+  if (!req.session.dbType) {
+    return res.redirect('/admin');
+  }
+  const db = knex(dbConfigs[req.session.dbType]);
+  try {
+    let tables;
+    if (req.session.dbType === 'postgresql') {
+      tables = await db.raw("SELECT tablename FROM pg_tables WHERE schemaname = 'public';");
+      tables = tables.rows.map(r => r.tablename);
+    } else if (req.session.dbType === 'mysql') {
+      tables = await db.raw('SHOW TABLES');
+      tables = tables[0].map(r => Object.values(r)[0]);
+    } else if (req.session.dbType === 'sqlite') {
+      tables = await db.raw("SELECT name FROM sqlite_master WHERE type='table'");
+      tables = tables.map(r => r.name);
+    }
+    const data = {};
+    for (const table of tables) {
+      const rows = await db(table).select('*');
+      data[table] = rows;
+    }
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="database_export.json"');
+    res.send(JSON.stringify(data, null, 2));
+  } catch (error) {
+    res.send(`Error: ${error.message}`);
+  } finally {
+    db.destroy();
+  }
+});
+
+// Import database
+adminApp.get('/import', (req, res) => {
+  if (!req.session.dbType) {
+    return res.redirect('/admin');
+  }
+  res.render('import');
+});
+
+adminApp.post('/import', async (req, res) => {
+  if (!req.session.dbType) {
+    return res.redirect('/admin');
+  }
+  const db = knex(dbConfigs[req.session.dbType]);
+  try {
+    const data = JSON.parse(req.body.jsonData);
+    for (const table in data) {
+      await db(table).del(); // Clear existing data
+      if (data[table].length > 0) {
+        await db(table).insert(data[table]);
+      }
+    }
+    res.send('Import successful. <a href="/admin/dashboard">Back to Dashboard</a>');
+  } catch (error) {
+    res.send(`Error: ${error.message}`);
+  } finally {
+    db.destroy();
+  }
+});
+
 module.exports = adminApp;
