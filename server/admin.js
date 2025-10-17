@@ -267,9 +267,17 @@ adminApp.post('/import', async (req, res) => {
   const db = knex(dbConfigs[req.session.dbType]);
   try {
     const data = JSON.parse(req.body.jsonData);
-    for (const table in data) {
-      await db(table).del(); // Clear existing data
-      if (data[table].length > 0) {
+    // Define table import order to respect foreign key constraints
+    const tableOrder = ['users', 'tournaments', 'tournament_registrations', 'payments', 'scores', 'user_subscriptions', 'user_testimonials'];
+    // First, clear all tables in reverse order
+    for (const table of tableOrder.reverse()) {
+      if (data[table]) {
+        await db(table).del();
+      }
+    }
+    // Then insert data in correct order
+    for (const table of tableOrder) {
+      if (data[table] && data[table].length > 0) {
         await db(table).insert(data[table]);
       }
     }
