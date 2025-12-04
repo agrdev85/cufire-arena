@@ -1,5 +1,5 @@
 CORS_ORIGIN=https://cufire-arena.onrender.com/api
-DATABASE_URL="postgresql://postgres:your_password@your-supabase-host:5432/postgres"
+DATABASE_URL=""
 JWT_SECRET=your-super-secret-jwt-key-here
 NODE_ENV=production
 PORT=5432
