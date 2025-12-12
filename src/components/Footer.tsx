@@ -499,7 +499,7 @@ const Footer = () => {
               © 2025 CUFIRE Arena. Todos los derechos reservados.
             </div>
             <div className="text-sm text-muted-foreground mt-4 md:mt-0">
-              Powered by <span className="text-neon-blue">Unity</span> + <span className="text-neon-purple">USDT</span>
+              Realizado con <span className="text-neon-blue">Unity</span> + <span className="text-neon-purple">USDT</span>
             </div>
           </div>
         </div>
