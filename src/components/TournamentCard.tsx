@@ -39,7 +39,7 @@ interface TournamentCardProps {
   maxPlayers?: number;
   startDate?: string;
   endDate?: string;
-  frontendState: "Open" | "En curso" | "Finalizado" | "Completo";
+  frontendState: "Abierto" | "En curso" | "Finalizado" | "Completo";
   countdownRemaining?: number;
   prizePercentage?: number;
   duration?: number;
@@ -68,7 +68,7 @@ const TournamentCard = ({
   const [txHash, setTxHash] = useState("");
   const [hasActiveRegistration, setHasActiveRegistration] = useState(false);
   const [calculatedState, setCalculatedState] = useState<
-    "Open" | "En curso" | "Finalizado" | "Completo"
+    "Abierto" | "En curso" | "Finalizado" | "Completo"
   >(frontendState);
 
   // Estado para cache
@@ -112,10 +112,10 @@ const TournamentCard = ({
       return;
     }
 
-    // Si está "Open" pero se alcanzaron los límites, cambiar a "Completo"
-    if (frontendState === "Open") {
+    // Si está "Abierto" pero se alcanzaron los límites, cambiar a "Completo"
+    if (frontendState === "Abierto") {
       const isAtCapacity = !canJoinTournament();
-      setCalculatedState(isAtCapacity ? "Completo" : "Open");
+      setCalculatedState(isAtCapacity ? "Completo" : "Abierto");
     } else {
       setCalculatedState(frontendState);
     }
@@ -166,7 +166,7 @@ const TournamentCard = ({
   // Función para verificar si el usuario puede unirse al torneo
   const canJoinTournament = (): boolean => {
     // Si el torneo no está abierto, no se puede unir
-    if (calculatedState !== "Open") return false;
+    if (calculatedState !== "Abierto") return false;
 
     // Verificar límite de recaudación (si está definido) - usando potentialAmount como el backend
     if (maxAmount !== null && maxAmount !== undefined) {
@@ -239,7 +239,7 @@ const TournamentCard = ({
     switch (calculatedState) {
       case "En curso":
         return "bg-cyber-green";
-      case "Open":
+      case "Abierto":
         return "bg-neon-blue";
       case "Finalizado":
         return "bg-muted";
@@ -462,7 +462,7 @@ const TournamentCard = ({
           </div>
         </div>
 
-        {calculatedState === "Open" && (
+        {calculatedState === "Abierto" && (
           <div className="text-sm text-muted-foreground p-2 bg-neon-blue/10 rounded">
             ℹ️ Inscripciones abiertas - No se aceptan puntuaciones aún
           </div>
@@ -482,7 +482,7 @@ const TournamentCard = ({
       </CardContent>
 
       <CardFooter>
-        {calculatedState === "Open" ? (
+        {calculatedState === "Abierto" ? (
           <>
             <Button
               variant="neon"
@@ -498,7 +498,7 @@ const TournamentCard = ({
               {!isAuthenticated ? "Inicia Sesión" : getJoinButtonText()}
             </Button>
 
-            <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
+            <Dialog Abierto={showJoinDialog} onAbiertoChange={setShowJoinDialog}>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle className="text-center">
