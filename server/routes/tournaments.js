@@ -72,7 +72,7 @@ function getFrontendState(tournament, now = new Date()) {
   }
 
   // Si no se cumple ninguna de las condiciones anteriores, está abierto
-  return "Open";
+  return "Abierto";
 }
 
 // NUEVO: GET - Obtener lista de IDs de torneos finalizados ocultos desde DB
