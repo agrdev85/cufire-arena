@@ -17,7 +17,7 @@ function getFrontendState(tournament, now = new Date()) {
     return "En curso";
   }
   
-  return "Open";
+  return "Abierto";
 }
 
 // Submit score
