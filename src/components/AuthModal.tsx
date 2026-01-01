@@ -151,7 +151,7 @@ export const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="register-wallet">Wallet USDT (TRC20)</Label>
+                <Label htmlFor="register-wallet">Wallet USDT BEP20 (BNB)</Label>
                 <Input
                   id="register-wallet"
                   type="text"
