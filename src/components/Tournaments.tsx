@@ -13,7 +13,7 @@ interface TournamentDTO {
   participantCount: number;
   maxPlayers?: number;
   startDate?: string | null;
-  frontendState: "Open" | "En curso" | "Finalizado" | "Completo"; // Actualizar para incluir "Completo"
+  frontendState: "Abierto" | "En curso" | "Finalizado" | "Completo"; // Actualizar para incluir "Completo"
   countdownRemaining?: number | null;
   prizePercentage?: number;
   duration?: number;
